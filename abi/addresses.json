@@ -1,0 +1,12 @@
+{
+  "network": "bsc_testnet",
+  "chainId": 97,
+  "contracts": {
+    "MockUSDT": "",
+    "MockBNB": "",
+    "MockRouter": "",
+    "Vault": "",
+    "TradeRegistry": ""
+  },
+  "_note": "Fill addresses after deployment with: forge script script/Deploy.s.sol --rpc-url $BSC_TESTNET_RPC --broadcast"
+}
