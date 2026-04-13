@@ -6,6 +6,7 @@ from config import (
     AGENT_PRIVATE_KEY,
     VAULT_ADDRESS,
     TRADE_REGISTRY_ADDRESS,
+    MOCK_USDT_ADDRESS,
     BSC_TESTNET_CHAIN_ID,
 )
 
@@ -41,7 +42,7 @@ def _send_tx(func):
     tx = func.build_transaction({
         "chainId": BSC_TESTNET_CHAIN_ID,
         "from": account.address,
-        "nonce": w3.eth.get_transaction_count(account.address),
+        "nonce": w3.eth.get_transaction_count(account.address, "pending"),
         "gas": 500_000,
         "gasPrice": w3.eth.gas_price,
     })
@@ -49,6 +50,41 @@ def _send_tx(func):
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
     return receipt
+
+
+def _get_usdt():
+    abi = _load_abi("MockERC20")
+    return w3.eth.contract(address=Web3.to_checksum_address(MOCK_USDT_ADDRESS), abi=abi)
+
+
+def deposit_to_vault(amount: int) -> dict:
+    """Approve USDT and deposit into Vault for the agent wallet."""
+    usdt = _get_usdt()
+    vault = _get_vault()
+    agent = _get_account()
+    vault_addr = Web3.to_checksum_address(VAULT_ADDRESS)
+
+    # 1. Approve Vault to spend USDT
+    receipt_approve = _send_tx(usdt.functions.approve(vault_addr, amount))
+    if receipt_approve.status != 1:
+        return {"status": "failed", "step": "approve", "tx_hash": receipt_approve.transactionHash.hex()}
+
+    # 2. Deposit into Vault
+    receipt_deposit = _send_tx(vault.functions.deposit(amount))
+    return {
+        "status": "success" if receipt_deposit.status == 1 else "failed",
+        "step": "deposit",
+        "tx_hash": receipt_deposit.transactionHash.hex(),
+        "amount": amount,
+        "gas_used": receipt_approve.gasUsed + receipt_deposit.gasUsed,
+    }
+
+
+def get_agent_usdt_balance() -> int:
+    """Get agent wallet's raw USDT token balance (not Vault balance)."""
+    usdt = _get_usdt()
+    agent = _get_account()
+    return usdt.functions.balanceOf(agent.address).call()
 
 
 def execute_buy(user: str, amount_in: int) -> dict:

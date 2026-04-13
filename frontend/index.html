@@ -114,12 +114,15 @@ body {
         </div>
       </div>
     </div>
-    <!-- Portfolio Summary -->
-    <div id="sidebar-portfolio" class="border-t-[0.5px] border-[#3d4a3d] pt-4 mb-4 hidden">
-      <div class="text-[10px] text-on-surface-variant mb-2">VAULT BALANCE</div>
+    <!-- Agent Vault Balance (always visible) -->
+    <div id="sidebar-portfolio" class="border-t-[0.5px] border-[#3d4a3d] pt-4 mb-4">
+      <div class="text-[10px] text-on-surface-variant mb-2 tracking-widest">AGENT VAULT</div>
       <div class="font-headline text-lg text-primary" id="sidebar-usdt">0.00 USDT</div>
       <div class="font-headline text-sm text-secondary" id="sidebar-bnb">0.0000 BNB</div>
       <div class="text-[10px] text-on-surface-variant mt-1">TOTAL: $<span id="sidebar-total">0.00</span></div>
+      <button id="fund-vault-btn" onclick="fundVault()" class="mt-3 w-full bg-primary/10 border-[0.5px] border-primary/40 text-primary text-[10px] font-bold uppercase tracking-widest py-2 hover:bg-primary/20 transition-all">
+        Fund Vault (5,000 USDT)
+      </button>
     </div>
   </div>
 </aside>
@@ -846,16 +849,64 @@ async function fetchTrades() {
 }
 
 async function loadPortfolio() {
-  if (!walletAddress) return;
+  // Always load agent vault balance
   try {
-    const res = await fetch(`${API}/api/portfolio/${walletAddress}`);
-    const data = await res.json();
-    if (!data.error) {
-      document.getElementById('sidebar-usdt').textContent = `${data.usdt.toFixed(2)} USDT`;
-      document.getElementById('sidebar-bnb').textContent = `${data.bnb.toFixed(4)} BNB`;
-      document.getElementById('sidebar-total').textContent = data.total_value_usdt.toFixed(2);
+    const res = await fetch(`${API}/api/status`);
+    const st = await res.json();
+    // Use agent address from status or fallback
+    if (walletAddress) {
+      const pRes = await fetch(`${API}/api/portfolio/${walletAddress}`);
+      const data = await pRes.json();
+      if (!data.error) {
+        document.getElementById('sidebar-usdt').textContent = `${data.usdt.toFixed(2)} USDT`;
+        document.getElementById('sidebar-bnb').textContent = `${data.bnb.toFixed(4)} BNB`;
+        document.getElementById('sidebar-total').textContent = data.total_value_usdt.toFixed(2);
+      }
     }
   } catch(e) {}
+  // Also load agent vault balance
+  try {
+    const res = await fetch(`${API}/api/agent-balance`);
+    const data = await res.json();
+    if (!data.error) {
+      document.getElementById('sidebar-usdt').textContent = `${data.vault_usdt.toFixed(2)} USDT`;
+      document.getElementById('sidebar-bnb').textContent = `${data.vault_bnb.toFixed(4)} BNB`;
+      document.getElementById('sidebar-total').textContent = data.total_value_usdt.toFixed(2);
+      // Update fund button visibility
+      const btn = document.getElementById('fund-vault-btn');
+      if (data.vault_usdt > 0) {
+        btn.textContent = `FUNDED (${data.vault_usdt.toFixed(0)} USDT)`;
+        btn.classList.add('opacity-50');
+      }
+    }
+  } catch(e) {}
+}
+
+async function fundVault() {
+  const btn = document.getElementById('fund-vault-btn');
+  btn.textContent = 'DEPOSITING...';
+  btn.disabled = true;
+  btn.classList.add('animate-pulse');
+  try {
+    const res = await fetch(`${API}/api/fund-vault`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+    const data = await res.json();
+    if (data.status === 'success') {
+      btn.textContent = `FUNDED (${data.vault_balance.usdt.toFixed(0)} USDT)`;
+      btn.classList.remove('animate-pulse');
+      btn.classList.add('opacity-50');
+      document.getElementById('sidebar-usdt').textContent = `${data.vault_balance.usdt.toFixed(2)} USDT`;
+      document.getElementById('sidebar-bnb').textContent = `${data.vault_balance.bnb.toFixed(4)} BNB`;
+    } else {
+      btn.textContent = data.error || 'FAILED — RETRY';
+      btn.classList.remove('animate-pulse');
+      btn.disabled = false;
+    }
+  } catch(e) {
+    btn.textContent = 'ERROR — RETRY';
+    btn.classList.remove('animate-pulse');
+    btn.disabled = false;
+    console.error('Fund vault error:', e);
+  }
 }
 
 async function triggerAnalysis() {
@@ -1533,7 +1584,7 @@ function refreshData() {
   fetchTrades();
   fetchLogs();
   fetchNetwork();
-  if (walletAddress) loadPortfolio();
+  loadPortfolio();
 }
 
 // ── Init ────────────────────────────────────────────────────
@@ -1544,6 +1595,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(fetchOHLCV, 120000);
   setInterval(fetchWhales, 60000);
   setInterval(fetchNetwork, 15000);
+  setInterval(loadPortfolio, 5000);
   setInterval(() => { if (currentTab === 'logs') fetchLogs(); }, 10000);
 });
 </script>

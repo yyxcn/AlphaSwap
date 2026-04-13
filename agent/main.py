@@ -409,6 +409,66 @@ async def get_portfolio(address: str):
         return {"error": str(e)}
 
 
+@app.get("/api/agent-balance")
+async def get_agent_balance():
+    """Get agent's wallet + vault balances."""
+    try:
+        from web3 import Web3
+        agent_address = Web3(Web3.HTTPProvider(config.BSC_TESTNET_RPC)).eth.account.from_key(config.AGENT_PRIVATE_KEY).address
+        vault_bal = executor.get_user_balances(agent_address)
+        wallet_usdt = executor.get_agent_usdt_balance()
+        current_price = latest_state.get("current_price", 0) or 0
+        vault_usdt = vault_bal["usdt"] / 1e18
+        vault_bnb = vault_bal["bnb"] / 1e18
+        bnb_value = vault_bnb * current_price
+        return {
+            "agent_address": agent_address,
+            "wallet_usdt": wallet_usdt / 1e18,
+            "vault_usdt": vault_usdt,
+            "vault_bnb": vault_bnb,
+            "bnb_value_usdt": round(bnb_value, 2),
+            "total_value_usdt": round(vault_usdt + bnb_value, 2),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/fund-vault")
+async def fund_vault(amount: float = 5000.0):
+    """Deposit agent's MockUSDT into the Vault for demo trading."""
+    try:
+        # Check agent's USDT wallet balance
+        wallet_bal = executor.get_agent_usdt_balance()
+        wallet_usdt = wallet_bal / 1e18
+
+        from web3 import Web3
+        agent_address = Web3(Web3.HTTPProvider(config.BSC_TESTNET_RPC)).eth.account.from_key(config.AGENT_PRIVATE_KEY).address
+        vault_bal = executor.get_user_balances(agent_address)
+        vault_usdt = vault_bal["usdt"] / 1e18
+
+        if wallet_usdt < amount:
+            amount = wallet_usdt  # deposit whatever is available
+        if amount <= 0:
+            return {"error": "No USDT available to deposit", "wallet_balance": wallet_usdt, "vault_balance": vault_usdt}
+
+        amount_wei = int(amount * 1e18)
+        result = executor.deposit_to_vault(amount_wei)
+
+        if result["status"] == "success":
+            add_log("success", f"Vault funded: {amount:.2f} USDT deposited", "trade")
+            new_bal = executor.get_user_balances(agent_address)
+            return {
+                "status": "success",
+                "deposited": amount,
+                "tx_hash": result["tx_hash"],
+                "vault_balance": {"usdt": new_bal["usdt"] / 1e18, "bnb": new_bal["bnb"] / 1e18},
+            }
+        else:
+            return {"status": "failed", "detail": result}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/api/logs")
 async def get_logs(count: int = 100):
     """Recent agent activity logs."""
