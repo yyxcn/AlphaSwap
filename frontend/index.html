@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ALPHASWAP | On-chain Analytics Command</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "inverse-primary":"#006e2f","outline":"#869585","surface-container":"#171f33",
+        "on-error":"#690005","surface-variant":"#2d3449","background":"#0b1326",
+        "secondary-fixed":"#e1e0ff","on-primary-container":"#006028",
+        "outline-variant":"#3d4a3d","primary-fixed-dim":"#4ae176",
+        "tertiary-container":"#ffb686","surface-dim":"#0b1326",
+        "secondary-fixed-dim":"#c0c1ff","primary-fixed":"#6bff8f",
+        "primary":"#6bfe8f","on-secondary-container":"#b0b2ff",
+        "inverse-surface":"#dae2fd","on-tertiary":"#502401",
+        "on-surface-variant":"#bccbb9","surface-container-high":"#222a3d",
+        "on-surface":"#dae2fd","surface-tint":"#4ae176",
+        "surface-container-highest":"#2d3449","surface-bright":"#31394d",
+        "secondary-container":"#3131c0","error-container":"#93000a",
+        "error":"#ffb4ab","on-error-container":"#ffdad6",
+        "tertiary":"#ffdbc6","on-background":"#dae2fd",
+        "on-primary":"#003915","surface-container-low":"#131b2e",
+        "surface":"#0b1326","primary-container":"#4ae176",
+        "secondary":"#c0c1ff","on-secondary":"#1000a9"
+      },
+      borderRadius: { DEFAULT:"0px", lg:"0px", xl:"0px", full:"9999px" },
+      fontFamily: { headline:["Space Grotesk"], body:["Inter"], label:["Space Grotesk"] }
+    }
+  }
+}
+</script>
+<style>
+body {
+  background-color: #0b1326;
+  background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 100% 3px;
+}
+.material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+.glass-panel { background:rgba(45,52,73,0.6); backdrop-filter:blur(12px); }
+@keyframes pulse-glow { 0%,100%{box-shadow:0 0 8px rgba(74,225,118,0.3)} 50%{box-shadow:0 0 20px rgba(74,225,118,0.6)} }
+.pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+@keyframes scan { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
+.scanline { animation: scan 8s linear infinite; }
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:#0b1326; }
+::-webkit-scrollbar-thumb { background:#3d4a3d; }
+::-webkit-scrollbar-thumb:hover { background:#4ae176; }
+</style>
+</head>
+<body class="font-body text-on-surface overflow-x-hidden selection:bg-primary selection:text-on-primary">
+
+<!-- TopAppBar -->
+<nav class="fixed top-0 w-full z-50 border-b-[0.5px] border-[#3d4a3d] flex justify-between items-center h-16 px-6 bg-[#0b1326] font-['Space_Grotesk'] tracking-tight uppercase">
+  <div class="text-2xl font-bold tracking-tighter text-[#4ae176]">ALPHASWAP</div>
+  <div class="flex items-center gap-4">
+    <span class="material-symbols-outlined text-[#c0c1ff] cursor-pointer hover:bg-[#31394d] p-2 transition-all" onclick="refreshData()">sync</span>
+    <div class="flex items-center gap-2">
+      <div id="connection-dot" class="w-2 h-2 bg-error rounded-full"></div>
+      <span id="connection-status" class="text-[10px] text-on-surface-variant">OFFLINE</span>
+    </div>
+    <button id="wallet-btn" onclick="connectWallet()" class="bg-secondary-container text-on-secondary px-4 py-2 text-xs font-bold border-[0.5px] border-secondary hover:brightness-110 transition-all">Connect Wallet</button>
+  </div>
+</nav>
+
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-16 h-[calc(100vh-64px)] w-56 border-r-[0.5px] border-[#3d4a3d] bg-[#060e20] flex flex-col py-4 gap-2 font-['Space_Grotesk'] text-xs tracking-widest uppercase z-40">
+  <div class="px-6 mb-6">
+    <h3 class="text-[#4ae176] font-black text-sm">EXECUTION</h3>
+    <p class="text-on-surface-variant text-[10px] opacity-60">AI CORE V2.0</p>
+  </div>
+  <div class="flex flex-col gap-1" id="sidebar-nav">
+    <a data-tab="analytics" class="sidebar-link flex items-center gap-4 px-6 py-3 bg-[#31394d] text-[#4ae176] border-l-4 border-[#4ae176] transition-all cursor-pointer" onclick="showTab('analytics')">
+      <span class="material-symbols-outlined">security</span><span>Sentinel</span>
+    </a>
+    <a data-tab="params" class="sidebar-link flex items-center gap-4 px-6 py-3 text-[#c0c1ff] opacity-70 hover:opacity-100 hover:bg-[#0b1326] transition-all cursor-pointer" onclick="showTab('params')">
+      <span class="material-symbols-outlined">settings_input_component</span><span>Parameters</span>
+    </a>
+    <a data-tab="simulation" class="sidebar-link flex items-center gap-4 px-6 py-3 text-[#c0c1ff] opacity-70 hover:opacity-100 hover:bg-[#0b1326] transition-all cursor-pointer" onclick="showTab('simulation')">
+      <span class="material-symbols-outlined">science</span><span>Simulation</span>
+    </a>
+    <a data-tab="logs" class="sidebar-link flex items-center gap-4 px-6 py-3 text-[#c0c1ff] opacity-70 hover:opacity-100 hover:bg-[#0b1326] transition-all cursor-pointer" onclick="showTab('logs')">
+      <span class="material-symbols-outlined">terminal</span><span>Agent Log</span>
+    </a>
+  </div>
+  <!-- Network Status -->
+  <div class="mt-auto px-4">
+    <div id="sidebar-network" class="border-t-[0.5px] border-[#3d4a3d] pt-4 mb-3">
+      <div class="text-[10px] text-on-surface-variant mb-2 tracking-widest">NETWORK</div>
+      <div class="flex items-center gap-2 mb-1.5">
+        <div id="net-dot" class="w-2 h-2 rounded-full bg-error/60 animate-pulse"></div>
+        <span id="net-label" class="text-[10px] text-on-surface-variant">BSC TESTNET</span>
+      </div>
+      <div class="space-y-1 font-mono text-[10px]">
+        <div class="flex justify-between">
+          <span class="text-on-surface-variant opacity-60">Block</span>
+          <span id="net-block" class="text-on-surface">—</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-on-surface-variant opacity-60">Gas</span>
+          <span id="net-gas" class="text-on-surface">— Gwei</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-on-surface-variant opacity-60">Chain</span>
+          <span class="text-on-surface">97</span>
+        </div>
+      </div>
+    </div>
+    <!-- Portfolio Summary -->
+    <div id="sidebar-portfolio" class="border-t-[0.5px] border-[#3d4a3d] pt-4 mb-4 hidden">
+      <div class="text-[10px] text-on-surface-variant mb-2">VAULT BALANCE</div>
+      <div class="font-headline text-lg text-primary" id="sidebar-usdt">0.00 USDT</div>
+      <div class="font-headline text-sm text-secondary" id="sidebar-bnb">0.0000 BNB</div>
+      <div class="text-[10px] text-on-surface-variant mt-1">TOTAL: $<span id="sidebar-total">0.00</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main Canvas -->
+<main class="ml-56 mt-16 p-6 min-h-screen bg-background">
+
+<!-- Header Section -->
+<header class="flex justify-between items-end mb-6 border-b-[0.5px] border-outline-variant pb-4">
+  <div>
+    <div class="flex items-center gap-2 mb-1">
+      <div class="w-2 h-2 bg-primary animate-pulse"></div>
+      <span class="font-label text-[10px] tracking-widest text-primary uppercase">Live Network Feed: BSC_MAINNET</span>
+    </div>
+    <h1 class="font-headline text-3xl font-bold tracking-tighter text-on-surface uppercase">On-chain Analytics Command</h1>
+  </div>
+  <div class="flex gap-4">
+    <div class="bg-surface-container-low p-3 border-[0.5px] border-outline-variant text-right">
+      <span class="block font-label text-[10px] text-on-surface-variant mb-1 uppercase">BNB/USDT</span>
+      <span class="block font-headline text-2xl text-primary" id="header-price">--</span>
+    </div>
+    <div class="bg-surface-container-low p-3 border-[0.5px] border-outline-variant text-right">
+      <span class="block font-label text-[10px] text-on-surface-variant mb-1 uppercase">AI Signal</span>
+      <span class="block font-headline text-2xl" id="header-signal">--</span>
+    </div>
+    <div class="bg-surface-container-low p-3 border-[0.5px] border-outline-variant text-right">
+      <span class="block font-label text-[10px] text-on-surface-variant mb-1 uppercase">Confidence</span>
+      <span class="block font-headline text-2xl text-secondary" id="header-confidence">--%</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════ ANALYTICS VIEW ═══════ -->
+<div id="view-analytics">
+<div class="grid grid-cols-12 gap-5">
+
+  <!-- LEFT COLUMN -->
+  <div class="col-span-12 lg:col-span-8 flex flex-col gap-5">
+
+    <!-- Price Chart -->
+    <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-4 relative overflow-hidden">
+      <div class="flex justify-between items-start mb-3">
+        <div>
+          <h2 class="font-headline text-lg font-bold uppercase tracking-tight">BNB/USDT Price Action</h2>
+          <p class="font-body text-xs text-on-surface-variant">1H Candles + Bollinger Bands + SMA</p>
+        </div>
+        <div class="flex gap-3">
+          <div class="flex items-center gap-1"><div class="w-3 h-[2px] bg-[#2962ff]"></div><span class="font-label text-[10px]">SMA20</span></div>
+          <div class="flex items-center gap-1"><div class="w-3 h-[2px] bg-[#ff6d00]"></div><span class="font-label text-[10px]">SMA50</span></div>
+          <div class="flex items-center gap-1"><div class="w-3 h-[2px] bg-[#ab47bc]"></div><span class="font-label text-[10px]">BB</span></div>
+        </div>
+      </div>
+      <div id="price-chart" style="height:360px;"></div>
+    </section>
+
+    <!-- AI Signal + Indicators Panel -->
+    <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-5">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-headline text-lg font-bold uppercase tracking-tight">AI Analysis Engine</h2>
+        <div class="flex gap-2">
+          <button onclick="forceAction('buy')" class="bg-primary/20 text-primary px-4 py-2 text-[10px] font-bold uppercase tracking-wider border-[0.5px] border-primary/40 hover:bg-primary/40 transition-all">Force Buy</button>
+          <button onclick="forceAction('sell')" class="bg-error/20 text-error px-4 py-2 text-[10px] font-bold uppercase tracking-wider border-[0.5px] border-error/40 hover:bg-error/40 transition-all">Force Sell</button>
+          <button onclick="triggerAnalysis()" class="bg-secondary/20 text-secondary px-4 py-2 text-[10px] font-bold uppercase tracking-wider border-[0.5px] border-secondary/40 hover:bg-secondary/40 transition-all">Analyze Now</button>
+        </div>
+      </div>
+
+      <!-- Signal Badge -->
+      <div class="flex items-center gap-4 mb-5">
+        <div id="signal-badge" class="px-5 py-3 text-xl font-black font-headline uppercase tracking-wider bg-surface-container-highest text-on-surface-variant">
+          WAITING
+        </div>
+        <div>
+          <div class="text-[10px] text-on-surface-variant uppercase">Confidence Score</div>
+          <div class="flex items-center gap-2 mt-1">
+            <div class="w-48 h-2 bg-surface-container-highest overflow-hidden">
+              <div id="confidence-bar" class="h-full bg-primary transition-all duration-700" style="width:0%"></div>
+            </div>
+            <span id="confidence-text" class="font-headline text-sm">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Indicator Grid -->
+      <div class="grid grid-cols-4 gap-3 mb-4">
+        <div class="bg-surface-container p-3 border-[0.5px] border-outline-variant">
+          <div class="text-[10px] text-on-surface-variant uppercase mb-1">RSI (14)</div>
+          <div class="font-headline text-lg" id="ind-rsi-val">--</div>
+          <div class="text-[10px] uppercase mt-1" id="ind-rsi-sig">--</div>
+        </div>
+        <div class="bg-surface-container p-3 border-[0.5px] border-outline-variant">
+          <div class="text-[10px] text-on-surface-variant uppercase mb-1">MACD</div>
+          <div class="font-headline text-lg" id="ind-macd-val">--</div>
+          <div class="text-[10px] uppercase mt-1" id="ind-macd-sig">--</div>
+        </div>
+        <div class="bg-surface-container p-3 border-[0.5px] border-outline-variant">
+          <div class="text-[10px] text-on-surface-variant uppercase mb-1">Moving Avg</div>
+          <div class="font-headline text-lg" id="ind-ma-val">--</div>
+          <div class="text-[10px] uppercase mt-1" id="ind-ma-sig">--</div>
+        </div>
+        <div class="bg-surface-container p-3 border-[0.5px] border-outline-variant">
+          <div class="text-[10px] text-on-surface-variant uppercase mb-1">Bollinger %B</div>
+          <div class="font-headline text-lg" id="ind-bb-val">--</div>
+          <div class="text-[10px] uppercase mt-1" id="ind-bb-sig">--</div>
+        </div>
+      </div>
+
+      <!-- AI Reasoning -->
+      <div class="bg-surface-container-lowest border-[0.5px] border-outline-variant p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="material-symbols-outlined text-xs text-primary">memory</span>
+          <span class="font-label text-[10px] uppercase text-on-surface-variant">AI Reasoning</span>
+          <span class="text-[10px] text-on-surface-variant ml-auto" id="last-update">--</span>
+        </div>
+        <p class="font-mono text-xs text-on-surface leading-relaxed" id="ai-reasoning">
+          Awaiting first analysis cycle...
+        </p>
+      </div>
+    </section>
+
+    <!-- Sentiment Heatmap -->
+    <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-5">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-headline text-lg font-bold uppercase tracking-tight">Probabilistic Sentiment Mesh</h2>
+        <span class="text-[10px] text-on-surface-variant uppercase">Indicator Consensus</span>
+      </div>
+      <div class="grid grid-cols-4 gap-2 h-20" id="sentiment-grid">
+        <div class="flex flex-col items-center justify-center border-[0.5px] border-outline-variant bg-surface-container transition-colors" id="sent-rsi">
+          <span class="text-[10px] font-bold">RSI</span>
+          <span class="text-[8px] text-on-surface-variant">--</span>
+        </div>
+        <div class="flex flex-col items-center justify-center border-[0.5px] border-outline-variant bg-surface-container transition-colors" id="sent-macd">
+          <span class="text-[10px] font-bold">MACD</span>
+          <span class="text-[8px] text-on-surface-variant">--</span>
+        </div>
+        <div class="flex flex-col items-center justify-center border-[0.5px] border-outline-variant bg-surface-container transition-colors" id="sent-ma">
+          <span class="text-[10px] font-bold">MA</span>
+          <span class="text-[8px] text-on-surface-variant">--</span>
+        </div>
+        <div class="flex flex-col items-center justify-center border-[0.5px] border-outline-variant bg-surface-container transition-colors" id="sent-bb">
+          <span class="text-[10px] font-bold">BB</span>
+          <span class="text-[8px] text-on-surface-variant">--</span>
+        </div>
+      </div>
+      <div class="mt-3 flex justify-between font-label text-[10px] text-on-surface-variant uppercase">
+        <span>Bearish</span>
+        <span>Neutral</span>
+        <span>Bullish</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- RIGHT COLUMN: Whale Tracker -->
+  <div class="col-span-12 lg:col-span-4 flex flex-col gap-5">
+
+    <!-- Whale Tracker Feed -->
+    <section class="bg-surface-container-low border-[0.5px] border-outline-variant flex flex-col overflow-hidden">
+      <div class="p-4 border-b-[0.5px] border-outline-variant flex justify-between items-center bg-surface-container">
+        <div>
+          <h2 class="font-headline text-sm font-bold uppercase">Whale Tracker Feed</h2>
+          <p class="text-[10px] text-on-surface-variant uppercase tracking-widest">Large Tx Monitoring</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <div id="whale-flow-badge" class="px-2 py-1 text-[10px] font-bold uppercase bg-surface-container-highest text-on-surface-variant">--</div>
+          <span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings:'FILL' 1;">waves</span>
+        </div>
+      </div>
+      <div class="flex-grow overflow-y-auto max-h-[500px]" id="whale-feed">
+        <div class="p-6 text-center text-on-surface-variant text-xs">Loading whale data...</div>
+      </div>
+      <div class="p-3 border-t-[0.5px] border-outline-variant bg-surface-container">
+        <div class="flex justify-between text-[10px] text-on-surface-variant">
+          <span>Inflow: <span id="whale-inflow" class="text-error font-bold">0</span></span>
+          <span>Outflow: <span id="whale-outflow" class="text-primary font-bold">0</span></span>
+          <span>Net: <span id="whale-net" class="font-bold">--</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trade History -->
+    <section class="bg-surface-container-low border-[0.5px] border-outline-variant flex flex-col overflow-hidden">
+      <div class="p-4 border-b-[0.5px] border-outline-variant bg-surface-container">
+        <h2 class="font-headline text-sm font-bold uppercase">Trade Ledger</h2>
+        <p class="text-[10px] text-on-surface-variant uppercase tracking-widest">On-chain Records</p>
+      </div>
+      <div class="flex-grow overflow-y-auto max-h-[300px]" id="trade-feed">
+        <div class="p-6 text-center text-on-surface-variant text-xs">No trades yet</div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- System Intelligence Footer -->
+<footer class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-5">
+  <div class="bg-surface-container-lowest border-[0.5px] border-outline-variant p-4">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-symbols-outlined text-xs text-primary">memory</span>
+      <span class="font-label text-[10px] uppercase text-on-surface-variant">Neural Inference Engine</span>
+    </div>
+    <p class="font-mono text-[10px] text-on-surface leading-relaxed" id="footer-ai">
+      [SYSTEM]: Initializing AI analysis pipeline...
+    </p>
+  </div>
+  <div class="bg-surface-container-lowest border-[0.5px] border-outline-variant p-4">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-symbols-outlined text-xs text-secondary">hub</span>
+      <span class="font-label text-[10px] uppercase text-on-surface-variant">Node Connectivity</span>
+    </div>
+    <p class="font-mono text-[10px] text-on-surface leading-relaxed" id="footer-network">
+      [NETWORK]: Connecting to BSC mainnet RPC...
+    </p>
+  </div>
+  <div class="bg-surface-container-lowest border-[0.5px] border-outline-variant p-4">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-symbols-outlined text-xs text-error">report</span>
+      <span class="font-label text-[10px] uppercase text-on-surface-variant">Risk Assessment</span>
+    </div>
+    <p class="font-mono text-[10px] text-on-surface leading-relaxed" id="footer-risk">
+      [RISK]: Awaiting data for risk assessment...
+    </p>
+  </div>
+</footer>
+
+</div><!-- end #view-analytics -->
+
+<!-- ═══════ PARAMETERS VIEW ═══════ -->
+<div id="view-params" class="hidden">
+  <header class="flex justify-between items-end mb-6 border-b-[0.5px] border-outline-variant pb-4">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="material-symbols-outlined text-sm text-primary">settings_input_component</span>
+        <span class="font-label text-[10px] tracking-widest text-primary uppercase">Strategy Configuration</span>
+      </div>
+      <h1 class="font-headline text-3xl font-bold tracking-tighter text-on-surface uppercase">Trading Parameters</h1>
+    </div>
+    <button onclick="saveParams()" class="bg-primary/20 text-primary px-6 py-3 text-xs font-bold uppercase tracking-wider border-[0.5px] border-primary/40 hover:bg-primary/40 transition-all">
+      Save Parameters
+    </button>
+  </header>
+
+  <div class="grid grid-cols-12 gap-5">
+
+    <!-- Auto-Trade Master Switch -->
+    <div class="col-span-12">
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="font-headline text-lg font-bold uppercase tracking-tight">Auto-Trade Engine</h2>
+            <p class="text-xs text-on-surface-variant mt-1">AI 신뢰도가 임계값을 넘으면 자동으로 매매를 실행합니다</p>
+          </div>
+          <label class="relative cursor-pointer">
+            <input type="checkbox" id="param-auto-trade" class="sr-only peer" checked>
+            <div class="w-14 h-7 bg-surface-container-highest peer-checked:bg-primary/40 border-[0.5px] border-outline-variant peer-checked:border-primary/60 transition-colors">
+              <div class="absolute top-[3px] left-[3px] w-5 h-5 bg-on-surface-variant peer-checked:bg-primary peer-checked:translate-x-7 transition-all"></div>
+            </div>
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <!-- Left: Core Parameters -->
+    <div class="col-span-12 lg:col-span-6 flex flex-col gap-5">
+
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Confidence Threshold</h3>
+        <p class="text-[10px] text-on-surface-variant mb-3">AI 신뢰도가 이 값 이상일 때만 자동매매 실행</p>
+        <div class="flex items-center gap-4">
+          <input type="range" id="param-confidence" min="0" max="100" value="70" oninput="document.getElementById('param-confidence-val').textContent=this.value+'%'" class="flex-1 h-1 bg-surface-container-highest appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer">
+          <span id="param-confidence-val" class="font-headline text-2xl text-primary w-16 text-right">70%</span>
+        </div>
+      </section>
+
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Max Trade Size</h3>
+        <p class="text-[10px] text-on-surface-variant mb-3">1회 매매 시 최대 포트폴리오 비율</p>
+        <div class="flex items-center gap-4">
+          <input type="range" id="param-max-trade" min="1" max="100" value="50" oninput="document.getElementById('param-max-trade-val').textContent=this.value+'%'" class="flex-1 h-1 bg-surface-container-highest appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer">
+          <span id="param-max-trade-val" class="font-headline text-2xl text-primary w-16 text-right">50%</span>
+        </div>
+      </section>
+
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Monitor Interval</h3>
+        <p class="text-[10px] text-on-surface-variant mb-3">AI 분석 주기 (초)</p>
+        <div class="flex items-center gap-4">
+          <input type="range" id="param-interval" min="10" max="600" value="60" step="10" oninput="document.getElementById('param-interval-val').textContent=this.value+'s'" class="flex-1 h-1 bg-surface-container-highest appearance-none cursor-pointer accent-secondary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-secondary [&::-webkit-slider-thumb]:cursor-pointer">
+          <span id="param-interval-val" class="font-headline text-2xl text-secondary w-20 text-right">60s</span>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Right: RSI Thresholds + Indicator Toggles -->
+    <div class="col-span-12 lg:col-span-6 flex flex-col gap-5">
+
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">RSI Thresholds</h3>
+        <div class="mb-4">
+          <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
+            <span>BUY ZONE (Oversold)</span>
+            <span id="param-rsi-buy-val" class="text-primary font-bold">30</span>
+          </div>
+          <input type="range" id="param-rsi-buy" min="0" max="50" value="30" oninput="document.getElementById('param-rsi-buy-val').textContent=this.value; updateRSIZones()" class="w-full h-1 bg-surface-container-highest appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer">
+        </div>
+        <div>
+          <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
+            <span>SELL ZONE (Overbought)</span>
+            <span id="param-rsi-sell-val" class="text-error font-bold">70</span>
+          </div>
+          <input type="range" id="param-rsi-sell" min="50" max="100" value="70" oninput="document.getElementById('param-rsi-sell-val').textContent=this.value; updateRSIZones()" class="w-full h-1 bg-surface-container-highest appearance-none cursor-pointer accent-red-500 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-error [&::-webkit-slider-thumb]:cursor-pointer">
+        </div>
+        <div class="mt-4 h-3 flex overflow-hidden border-[0.5px] border-outline-variant">
+          <div id="rsi-zone-buy" class="bg-primary/30 transition-all" style="width:30%"></div>
+          <div id="rsi-zone-neutral" class="bg-secondary/10 transition-all" style="width:40%"></div>
+          <div id="rsi-zone-sell" class="bg-error/30 transition-all" style="width:30%"></div>
+        </div>
+        <div class="flex justify-between text-[8px] text-on-surface-variant mt-1">
+          <span>0</span><span>BUY</span><span>NEUTRAL</span><span>SELL</span><span>100</span>
+        </div>
+      </section>
+
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Active Indicators</h3>
+        <p class="text-[10px] text-on-surface-variant mb-4">AI 분석에 포함할 지표를 선택합니다</p>
+        <div class="flex flex-col gap-3">
+          <label class="flex items-center justify-between cursor-pointer">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-sm text-primary">show_chart</span>
+              <div><span class="text-xs font-bold">MACD (12/26/9)</span><span class="text-[10px] text-on-surface-variant block">Moving Average Convergence Divergence</span></div>
+            </div>
+            <input type="checkbox" id="param-use-macd" checked class="w-4 h-4 accent-primary bg-surface-container-highest border-outline-variant cursor-pointer">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-sm text-secondary">trending_up</span>
+              <div><span class="text-xs font-bold">Moving Averages</span><span class="text-[10px] text-on-surface-variant block">SMA(20/50/200), EMA(12/26), Cross</span></div>
+            </div>
+            <input type="checkbox" id="param-use-ma" checked class="w-4 h-4 accent-primary bg-surface-container-highest border-outline-variant cursor-pointer">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-sm text-[#ab47bc]">unfold_more</span>
+              <div><span class="text-xs font-bold">Bollinger Bands</span><span class="text-[10px] text-on-surface-variant block">20-period, 2 Std Dev</span></div>
+            </div>
+            <input type="checkbox" id="param-use-bollinger" checked class="w-4 h-4 accent-primary bg-surface-container-highest border-outline-variant cursor-pointer">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-sm text-error">waves</span>
+              <div><span class="text-xs font-bold">Whale Data (BSCScan)</span><span class="text-[10px] text-on-surface-variant block">Large BNB transfers, exchange flow</span></div>
+            </div>
+            <input type="checkbox" id="param-use-whale" checked class="w-4 h-4 accent-primary bg-surface-container-highest border-outline-variant cursor-pointer">
+          </label>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="params-status" class="mt-4 hidden">
+    <div class="bg-surface-container-lowest border-[0.5px] border-primary/40 p-4">
+      <p class="font-mono text-xs text-primary" id="params-status-text"></p>
+    </div>
+  </div>
+</div><!-- end #view-params -->
+
+<!-- ═══════ SIMULATION VIEW ═══════ -->
+<div id="view-simulation" class="hidden">
+  <header class="flex justify-between items-end mb-6 border-b-[0.5px] border-outline-variant pb-4">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="material-symbols-outlined text-sm text-primary">science</span>
+        <span class="font-label text-[10px] tracking-widest text-primary uppercase">Demo Simulation Mode</span>
+      </div>
+      <h1 class="font-headline text-3xl font-bold tracking-tighter text-on-surface uppercase">Indicator Override</h1>
+    </div>
+    <div class="flex gap-3">
+      <div class="flex items-center gap-3 bg-surface-container-low border-[0.5px] border-outline-variant px-4 py-2">
+        <span class="text-xs font-bold uppercase" id="sim-status-label">INACTIVE</span>
+        <label class="relative cursor-pointer">
+          <input type="checkbox" id="sim-enabled" onchange="toggleSimulation()" class="sr-only peer">
+          <div class="w-14 h-7 bg-surface-container-highest peer-checked:bg-error/40 border-[0.5px] border-outline-variant peer-checked:border-error/60 transition-colors">
+            <div class="absolute top-[3px] left-[3px] w-5 h-5 bg-on-surface-variant peer-checked:bg-error peer-checked:translate-x-7 transition-all"></div>
+          </div>
+        </label>
+      </div>
+      <button onclick="applyOverrides()" class="bg-error/20 text-error px-6 py-3 text-xs font-bold uppercase tracking-wider border-[0.5px] border-error/40 hover:bg-error/40 transition-all">
+        Apply Overrides
+      </button>
+    </div>
+  </header>
+
+  <div class="bg-error/5 border-[0.5px] border-error/30 p-4 mb-6">
+    <p class="font-mono text-[10px] text-error">[WARNING] Simulation mode replaces real indicator data with manual values. AI will analyze these overridden values and may trigger auto-trades on BSC Testnet. Use for demo purposes only.</p>
+  </div>
+
+  <div class="grid grid-cols-12 gap-5">
+
+    <!-- RSI Override -->
+    <div class="col-span-12 lg:col-span-6">
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-headline text-sm font-bold uppercase tracking-tight">RSI (14)</h3>
+          <span class="text-[10px] text-on-surface-variant">Relative Strength Index</span>
+        </div>
+        <div class="flex items-center gap-4 mb-3">
+          <input type="range" id="sim-rsi" min="0" max="100" value="45" oninput="updateSimPreview()" class="flex-1 h-2 bg-surface-container-highest appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer">
+          <span id="sim-rsi-val" class="font-headline text-3xl text-primary w-20 text-right">45</span>
+        </div>
+        <div class="h-2 flex overflow-hidden border-[0.5px] border-outline-variant">
+          <div class="bg-primary/40 w-[30%]"></div>
+          <div class="bg-secondary/10 w-[40%]"></div>
+          <div class="bg-error/40 w-[30%]"></div>
+        </div>
+        <div class="flex justify-between text-[8px] text-on-surface-variant mt-1">
+          <span>0 OVERSOLD</span><span>50 NEUTRAL</span><span>100 OVERBOUGHT</span>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button onclick="setSimRSI(20)" class="px-3 py-1 text-[10px] bg-primary/20 text-primary border-[0.5px] border-primary/30 hover:bg-primary/40">RSI 20</button>
+          <button onclick="setSimRSI(35)" class="px-3 py-1 text-[10px] bg-primary/10 text-primary border-[0.5px] border-primary/20 hover:bg-primary/30">RSI 35</button>
+          <button onclick="setSimRSI(50)" class="px-3 py-1 text-[10px] bg-secondary/10 text-secondary border-[0.5px] border-secondary/20 hover:bg-secondary/30">RSI 50</button>
+          <button onclick="setSimRSI(75)" class="px-3 py-1 text-[10px] bg-error/10 text-error border-[0.5px] border-error/20 hover:bg-error/30">RSI 75</button>
+          <button onclick="setSimRSI(85)" class="px-3 py-1 text-[10px] bg-error/20 text-error border-[0.5px] border-error/30 hover:bg-error/40">RSI 85</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- MACD Override -->
+    <div class="col-span-12 lg:col-span-6">
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-headline text-sm font-bold uppercase tracking-tight">MACD Histogram</h3>
+          <span class="text-[10px] text-on-surface-variant">Momentum Signal</span>
+        </div>
+        <div class="flex items-center gap-4 mb-3">
+          <input type="range" id="sim-macd" min="-10" max="10" value="0" step="0.1" oninput="updateSimPreview()" class="flex-1 h-2 bg-surface-container-highest appearance-none cursor-pointer accent-secondary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-secondary [&::-webkit-slider-thumb]:cursor-pointer">
+          <span id="sim-macd-val" class="font-headline text-3xl text-secondary w-24 text-right">0.0</span>
+        </div>
+        <div class="flex justify-between text-[8px] text-on-surface-variant">
+          <span>-10 BEARISH</span><span>0</span><span>+10 BULLISH</span>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button onclick="setSimMACD(-5)" class="px-3 py-1 text-[10px] bg-error/20 text-error border-[0.5px] border-error/30 hover:bg-error/40">Strong Bear</button>
+          <button onclick="setSimMACD(-1.5)" class="px-3 py-1 text-[10px] bg-error/10 text-error border-[0.5px] border-error/20 hover:bg-error/30">Bearish</button>
+          <button onclick="setSimMACD(1.5)" class="px-3 py-1 text-[10px] bg-primary/10 text-primary border-[0.5px] border-primary/20 hover:bg-primary/30">Bullish</button>
+          <button onclick="setSimMACD(5)" class="px-3 py-1 text-[10px] bg-primary/20 text-primary border-[0.5px] border-primary/30 hover:bg-primary/40">Strong Bull</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Bollinger %B Override -->
+    <div class="col-span-12 lg:col-span-6">
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-headline text-sm font-bold uppercase tracking-tight">Bollinger %B</h3>
+          <span class="text-[10px] text-on-surface-variant">Band Position</span>
+        </div>
+        <div class="flex items-center gap-4 mb-3">
+          <input type="range" id="sim-bb" min="-50" max="150" value="50" oninput="updateSimPreview()" class="flex-1 h-2 bg-surface-container-highest appearance-none cursor-pointer accent-[#ab47bc] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-[#ab47bc] [&::-webkit-slider-thumb]:cursor-pointer">
+          <span id="sim-bb-val" class="font-headline text-3xl text-[#ab47bc] w-24 text-right">0.50</span>
+        </div>
+        <div class="flex justify-between text-[8px] text-on-surface-variant">
+          <span>-0.5 BELOW LOWER</span><span>0.5 MID</span><span>1.5 ABOVE UPPER</span>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button onclick="setSimBB(-20)" class="px-3 py-1 text-[10px] bg-primary/20 text-primary border-[0.5px] border-primary/30 hover:bg-primary/40">Lower Break</button>
+          <button onclick="setSimBB(50)" class="px-3 py-1 text-[10px] bg-secondary/10 text-secondary border-[0.5px] border-secondary/20 hover:bg-secondary/30">Mid Band</button>
+          <button onclick="setSimBB(120)" class="px-3 py-1 text-[10px] bg-error/20 text-error border-[0.5px] border-error/30 hover:bg-error/40">Upper Break</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Whale Flow Override -->
+    <div class="col-span-12 lg:col-span-6">
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="font-headline text-sm font-bold uppercase tracking-tight">Whale Flow</h3>
+          <span class="text-[10px] text-on-surface-variant">Exchange In/Outflow</span>
+        </div>
+        <div class="flex flex-col gap-3">
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="radio" name="sim-whale" value="buy_signal" class="accent-primary" onchange="updateSimPreview()">
+            <div class="flex-1 flex justify-between items-center">
+              <span class="text-xs font-bold text-primary">BUY SIGNAL</span>
+              <span class="text-[10px] text-on-surface-variant">Large outflows from exchanges</span>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="radio" name="sim-whale" value="neutral" checked class="accent-secondary" onchange="updateSimPreview()">
+            <div class="flex-1 flex justify-between items-center">
+              <span class="text-xs font-bold text-secondary">NEUTRAL</span>
+              <span class="text-[10px] text-on-surface-variant">Balanced flow</span>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input type="radio" name="sim-whale" value="sell_pressure" class="accent-red-500" onchange="updateSimPreview()">
+            <div class="flex-1 flex justify-between items-center">
+              <span class="text-xs font-bold text-error">SELL PRESSURE</span>
+              <span class="text-[10px] text-on-surface-variant">Large inflows to exchanges</span>
+            </div>
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <!-- Presets -->
+    <div class="col-span-12">
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Quick Presets</h3>
+        <div class="flex gap-3 flex-wrap">
+          <button onclick="applyPreset('strong_buy')" class="px-5 py-3 bg-primary/20 text-primary text-xs font-bold uppercase border-[0.5px] border-primary/40 hover:bg-primary/40 transition-all">
+            Strong Buy Signal
+          </button>
+          <button onclick="applyPreset('mild_buy')" class="px-5 py-3 bg-primary/10 text-primary text-xs font-bold uppercase border-[0.5px] border-primary/20 hover:bg-primary/30 transition-all">
+            Mild Buy
+          </button>
+          <button onclick="applyPreset('neutral')" class="px-5 py-3 bg-secondary/10 text-secondary text-xs font-bold uppercase border-[0.5px] border-secondary/20 hover:bg-secondary/30 transition-all">
+            Neutral
+          </button>
+          <button onclick="applyPreset('mild_sell')" class="px-5 py-3 bg-error/10 text-error text-xs font-bold uppercase border-[0.5px] border-error/20 hover:bg-error/30 transition-all">
+            Mild Sell
+          </button>
+          <button onclick="applyPreset('strong_sell')" class="px-5 py-3 bg-error/20 text-error text-xs font-bold uppercase border-[0.5px] border-error/40 hover:bg-error/40 transition-all">
+            Strong Sell Signal
+          </button>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <!-- Override Preview -->
+  <div class="mt-5 bg-surface-container-lowest border-[0.5px] border-outline-variant p-4">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-symbols-outlined text-xs text-error">science</span>
+      <span class="font-label text-[10px] uppercase text-on-surface-variant">Override Preview — Values Being Sent to AI</span>
+    </div>
+    <div class="grid grid-cols-4 gap-4 font-mono text-xs" id="sim-preview">
+      <div>RSI: <span id="sim-p-rsi" class="text-primary">45</span></div>
+      <div>MACD: <span id="sim-p-macd" class="text-secondary">0.0</span></div>
+      <div>BB %B: <span id="sim-p-bb" class="text-[#ab47bc]">0.50</span></div>
+      <div>Whale: <span id="sim-p-whale" class="text-on-surface-variant">neutral</span></div>
+    </div>
+  </div>
+
+  <div id="sim-result" class="mt-4 hidden">
+    <div class="bg-surface-container-lowest border-[0.5px] border-primary/40 p-4">
+      <p class="font-mono text-xs text-primary" id="sim-result-text"></p>
+    </div>
+  </div>
+
+</div><!-- end #view-simulation -->
+
+<!-- ═══════ AGENT LOG VIEW ═══════ -->
+<div id="view-logs" class="hidden">
+  <div class="flex justify-between items-end mb-6">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="material-symbols-outlined text-primary text-base">terminal</span>
+        <span class="font-label text-[10px] tracking-widest text-primary uppercase">Real-time Agent Activity</span>
+      </div>
+      <h1 class="font-headline text-3xl font-bold tracking-tighter text-on-surface uppercase">Agent Log</h1>
+    </div>
+    <div class="flex gap-3">
+      <select id="log-filter" onchange="renderLogs()" class="bg-surface-container border-[0.5px] border-outline-variant text-on-surface text-xs px-3 py-2 uppercase">
+        <option value="all">All</option>
+        <option value="ai">AI Signals</option>
+        <option value="trade">Trades</option>
+        <option value="indicator">Indicators</option>
+        <option value="whale">Whale</option>
+        <option value="cycle">Cycles</option>
+        <option value="simulation">Simulation</option>
+      </select>
+      <button onclick="fetchLogs()" class="bg-surface-container border-[0.5px] border-outline-variant text-on-surface px-4 py-2 text-xs font-bold uppercase hover:border-primary hover:text-primary transition-all flex items-center gap-2">
+        <span class="material-symbols-outlined text-sm">refresh</span> Refresh
+      </button>
+      <label class="flex items-center gap-2 text-xs text-on-surface-variant uppercase cursor-pointer">
+        <input type="checkbox" id="log-autoscroll" checked class="accent-primary"> Auto-scroll
+      </label>
+    </div>
+  </div>
+
+  <!-- Log Terminal -->
+  <div class="bg-[#060e20] border-[0.5px] border-outline-variant font-mono text-xs overflow-hidden">
+    <!-- Header bar -->
+    <div class="flex items-center gap-3 px-4 py-2 bg-surface-container border-b-[0.5px] border-outline-variant">
+      <div class="flex gap-1.5">
+        <div class="w-2.5 h-2.5 rounded-full bg-error/60"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-[#f5a623]/60"></div>
+        <div class="w-2.5 h-2.5 rounded-full bg-primary/60"></div>
+      </div>
+      <span class="text-on-surface-variant text-[10px] uppercase tracking-widest">alphaswap-agent — monitor loop</span>
+      <span class="ml-auto text-on-surface-variant text-[10px]" id="log-count">0 entries</span>
+    </div>
+    <!-- Log content -->
+    <div id="log-container" class="h-[calc(100vh-280px)] overflow-y-auto p-4 space-y-1 scrollbar-thin">
+      <div class="text-on-surface-variant opacity-50">Waiting for logs...</div>
+    </div>
+  </div>
+</div><!-- end #view-logs -->
+
+</main>
+
+<!-- Scanline Overlay -->
+<div class="fixed inset-0 pointer-events-none z-[100] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.02),rgba(0,255,0,0.01),rgba(0,0,255,0.02))] bg-[length:100%_2px,3px_100%] opacity-20"></div>
+
+<!-- Force Trade Modal -->
+<div id="trade-modal" class="fixed inset-0 z-[200] hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-container border-[0.5px] border-outline-variant p-6 w-96">
+    <h3 class="font-headline text-lg font-bold uppercase mb-4" id="modal-title">Force Buy</h3>
+    <div class="mb-4">
+      <label class="font-label text-[10px] text-on-surface-variant uppercase block mb-1">Amount (USDT)</label>
+      <input id="modal-amount" type="number" value="100" class="w-full bg-surface-container-lowest border-[0.5px] border-outline-variant text-on-surface p-3 font-mono text-sm focus:border-primary outline-none"/>
+    </div>
+    <div class="flex gap-3">
+      <button id="modal-confirm" onclick="executeForce()" class="flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all">Confirm</button>
+      <button onclick="closeModal()" class="flex-1 bg-surface-container-highest text-on-surface-variant py-3 text-xs font-bold uppercase tracking-wider hover:bg-surface-bright transition-all">Cancel</button>
+    </div>
+    <div id="modal-status" class="mt-3 text-[10px] font-mono text-on-surface-variant hidden"></div>
+  </div>
+</div>
+
+<script>
+// ── Config ──────────────────────────────────────────────────
+const API = window.location.origin;
+let walletAddress = null;
+let currentAction = null;
+let chart = null;
+let candleSeries = null;
+let sma20Series = null;
+let sma50Series = null;
+let bbUpperSeries = null;
+let bbLowerSeries = null;
+
+// ── Wallet ──────────────────────────────────────────────────
+async function connectWallet() {
+  if (!window.ethereum) {
+    alert('MetaMask not detected. Install MetaMask to connect.');
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    walletAddress = accounts[0];
+    document.getElementById('wallet-btn').textContent = walletAddress.slice(0,6) + '...' + walletAddress.slice(-4);
+    document.getElementById('wallet-btn').classList.remove('bg-secondary-container','text-on-secondary');
+    document.getElementById('wallet-btn').classList.add('bg-primary/20','text-primary');
+    document.getElementById('sidebar-portfolio').classList.remove('hidden');
+    loadPortfolio();
+
+    // Switch to BSC Testnet
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x61' }],
+      });
+    } catch(e) {
+      if (e.code === 4902) {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: '0x61',
+            chainName: 'BSC Testnet',
+            rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
+            nativeCurrency: { name:'tBNB', symbol:'tBNB', decimals:18 },
+            blockExplorerUrls: ['https://testnet.bscscan.com']
+          }]
+        });
+      }
+    }
+  } catch(e) {
+    console.error('Wallet connection failed:', e);
+  }
+}
+
+// ── Data Fetching ───────────────────────────────────────────
+async function fetchStatus() {
+  try {
+    const res = await fetch(`${API}/api/status`);
+    const data = await res.json();
+    if (!data.current_price) return;
+
+    updateConnectionStatus(true);
+    updatePrice(data.current_price);
+    if (data.indicators) updateIndicators(data.indicators);
+    if (data.ai_signal) updateAISignal(data.ai_signal);
+    if (data.whale_data) updateWhalePanel(data.whale_data);
+    if (data.last_update) {
+      const ago = Math.round((Date.now()/1000 - data.last_update));
+      document.getElementById('last-update').textContent = `${ago}s ago`;
+    }
+  } catch(e) {
+    updateConnectionStatus(false);
+  }
+}
+
+async function fetchOHLCV() {
+  try {
+    const res = await fetch(`${API}/api/ohlcv?days=7`);
+    const data = await res.json();
+    if (data.ohlcv) updateChart(data.ohlcv);
+  } catch(e) {
+    console.error('OHLCV fetch error:', e);
+  }
+}
+
+async function fetchWhales() {
+  try {
+    const res = await fetch(`${API}/api/whales`);
+    const data = await res.json();
+    updateWhalePanel(data);
+  } catch(e) {
+    console.error('Whale fetch error:', e);
+  }
+}
+
+async function fetchTrades() {
+  try {
+    const res = await fetch(`${API}/api/trades?count=10`);
+    const data = await res.json();
+    if (data.trades) updateTradeHistory(data.trades);
+  } catch(e) {
+    console.error('Trades fetch error:', e);
+  }
+}
+
+async function loadPortfolio() {
+  if (!walletAddress) return;
+  try {
+    const res = await fetch(`${API}/api/portfolio/${walletAddress}`);
+    const data = await res.json();
+    if (!data.error) {
+      document.getElementById('sidebar-usdt').textContent = `${data.usdt.toFixed(2)} USDT`;
+      document.getElementById('sidebar-bnb').textContent = `${data.bnb.toFixed(4)} BNB`;
+      document.getElementById('sidebar-total').textContent = data.total_value_usdt.toFixed(2);
+    }
+  } catch(e) {}
+}
+
+async function triggerAnalysis() {
+  try {
+    const res = await fetch(`${API}/api/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+    const data = await res.json();
+    if (data.ai_signal) updateAISignal(data.ai_signal);
+    if (data.indicators) updateIndicators(data.indicators);
+    if (data.whale_data) updateWhalePanel(data.whale_data);
+    if (data.price) updatePrice(data.price);
+  } catch(e) {
+    console.error('Analysis error:', e);
+  }
+}
+
+// ── Force Trade ─────────────────────────────────────────────
+function forceAction(action) {
+  if (!walletAddress) { alert('Connect wallet first'); return; }
+  currentAction = action;
+  document.getElementById('modal-title').textContent = action === 'buy' ? 'Force Buy' : 'Force Sell';
+  const confirmBtn = document.getElementById('modal-confirm');
+  confirmBtn.className = action === 'buy'
+    ? 'flex-1 bg-primary/30 text-primary py-3 text-xs font-bold uppercase tracking-wider hover:bg-primary/50 transition-all border-[0.5px] border-primary/40'
+    : 'flex-1 bg-error/30 text-error py-3 text-xs font-bold uppercase tracking-wider hover:bg-error/50 transition-all border-[0.5px] border-error/40';
+  document.getElementById('trade-modal').classList.remove('hidden');
+  document.getElementById('trade-modal').classList.add('flex');
+  document.getElementById('modal-status').classList.add('hidden');
+}
+
+function closeModal() {
+  document.getElementById('trade-modal').classList.add('hidden');
+  document.getElementById('trade-modal').classList.remove('flex');
+}
+
+async function executeForce() {
+  const amount = parseFloat(document.getElementById('modal-amount').value);
+  if (!amount || amount <= 0) return;
+  const statusEl = document.getElementById('modal-status');
+  statusEl.classList.remove('hidden');
+  statusEl.textContent = `[EXEC]: Submitting ${currentAction} order for ${amount} USDT...`;
+  statusEl.className = 'mt-3 text-[10px] font-mono text-secondary';
+
+  try {
+    const res = await fetch(`${API}/api/analyze`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action: currentAction, user: walletAddress, amount })
+    });
+    const data = await res.json();
+    if (data.tx_result && data.tx_result.status === 'success') {
+      statusEl.textContent = `[SUCCESS]: TX ${data.tx_result.tx_hash.slice(0,16)}... Gas: ${data.tx_result.gas_used}`;
+      statusEl.className = 'mt-3 text-[10px] font-mono text-primary';
+      loadPortfolio();
+      fetchTrades();
+    } else if (data.error) {
+      statusEl.textContent = `[ERROR]: ${data.error}`;
+      statusEl.className = 'mt-3 text-[10px] font-mono text-error';
+    } else {
+      statusEl.textContent = `[RESULT]: ${JSON.stringify(data.ai_signal || data).slice(0,200)}`;
+      statusEl.className = 'mt-3 text-[10px] font-mono text-on-surface';
+    }
+  } catch(e) {
+    statusEl.textContent = `[ERROR]: ${e.message}`;
+    statusEl.className = 'mt-3 text-[10px] font-mono text-error';
+  }
+}
+
+// ── UI Updates ──────────────────────────────────────────────
+function updateConnectionStatus(connected) {
+  const dot = document.getElementById('connection-dot');
+  const text = document.getElementById('connection-status');
+  if (connected) {
+    dot.className = 'w-2 h-2 bg-primary rounded-full pulse-glow';
+    text.textContent = 'LIVE';
+    text.className = 'text-[10px] text-primary font-bold';
+  } else {
+    dot.className = 'w-2 h-2 bg-error rounded-full';
+    text.textContent = 'OFFLINE';
+    text.className = 'text-[10px] text-on-surface-variant';
+  }
+}
+
+function updatePrice(price) {
+  document.getElementById('header-price').textContent = `$${price.toLocaleString()}`;
+}
+
+function updateAISignal(signal) {
+  const badge = document.getElementById('signal-badge');
+  const action = (signal.action || 'hold').toUpperCase();
+  const conf = signal.confidence || 0;
+
+  if (action === 'BUY') {
+    badge.className = 'px-5 py-3 text-xl font-black font-headline uppercase tracking-wider bg-primary/20 text-primary border-[0.5px] border-primary/40 pulse-glow';
+  } else if (action === 'SELL') {
+    badge.className = 'px-5 py-3 text-xl font-black font-headline uppercase tracking-wider bg-error/20 text-error border-[0.5px] border-error/40';
+  } else {
+    badge.className = 'px-5 py-3 text-xl font-black font-headline uppercase tracking-wider bg-secondary/10 text-secondary border-[0.5px] border-secondary/40';
+  }
+  badge.textContent = action;
+
+  document.getElementById('confidence-bar').style.width = conf + '%';
+  document.getElementById('confidence-text').textContent = conf + '%';
+  document.getElementById('header-signal').textContent = action;
+  document.getElementById('header-signal').className = `block font-headline text-2xl ${action==='BUY'?'text-primary':action==='SELL'?'text-error':'text-secondary'}`;
+  document.getElementById('header-confidence').textContent = conf + '%';
+
+  if (signal.reasoning) {
+    document.getElementById('ai-reasoning').textContent = signal.reasoning;
+    document.getElementById('footer-ai').textContent = `[AI]: ${signal.reasoning}`;
+  }
+
+  // Indicator summary from AI
+  const sum = signal.indicators_summary;
+  if (sum) {
+    if (sum.whale) document.getElementById('footer-risk').textContent = `[RISK]: Whale analysis — ${sum.whale}`;
+  }
+
+  document.getElementById('footer-network').textContent = `[NETWORK]: Connected to BSC mainnet via PancakeSwap V3 pool. Block time: 3s. Feed latency: <50ms.`;
+}
+
+function updateIndicators(ind) {
+  // RSI
+  const rsi = ind.rsi || {};
+  document.getElementById('ind-rsi-val').textContent = rsi.value != null ? rsi.value : '--';
+  setSignalColor('ind-rsi-sig', rsi.signal, rsi.signal === 'oversold' ? 'OVERSOLD' : rsi.signal === 'overbought' ? 'OVERBOUGHT' : 'NEUTRAL');
+  setSentimentBlock('sent-rsi', rsi.signal === 'oversold' ? 'bullish' : rsi.signal === 'overbought' ? 'bearish' : 'neutral', rsi.value);
+
+  // MACD
+  const macd = ind.macd || {};
+  document.getElementById('ind-macd-val').textContent = macd.histogram != null ? macd.histogram : '--';
+  setSignalColor('ind-macd-sig', macd.signal, (macd.signal||'neutral').toUpperCase());
+  setSentimentBlock('sent-macd', macd.signal, macd.histogram);
+
+  // MA
+  const ma = ind.ma || {};
+  document.getElementById('ind-ma-val').textContent = ma.sma20 || '--';
+  const maSig = ma.cross === 'golden_cross' ? 'bullish' : ma.cross === 'dead_cross' ? 'bearish' : 'neutral';
+  const maLabel = ma.cross === 'golden_cross' ? 'GOLDEN CROSS' : ma.cross === 'dead_cross' ? 'DEAD CROSS' : `Price ${(ma.price_vs_sma20||'').toUpperCase()}`;
+  setSignalColor('ind-ma-sig', maSig, maLabel);
+  setSentimentBlock('sent-ma', maSig, ma.cross);
+
+  // Bollinger
+  const bb = ind.bollinger || {};
+  document.getElementById('ind-bb-val').textContent = bb.pct_b != null ? bb.pct_b.toFixed(3) : '--';
+  const bbSig = bb.signal === 'lower_break' ? 'bullish' : bb.signal === 'upper_break' ? 'bearish' : 'neutral';
+  const bbLabel = bb.signal === 'lower_break' ? 'LOWER BREAK' : bb.signal === 'upper_break' ? 'UPPER BREAK' : 'IN BAND';
+  setSignalColor('ind-bb-sig', bbSig, bbLabel);
+  setSentimentBlock('sent-bb', bbSig, bb.pct_b);
+}
+
+function setSignalColor(id, signal, label) {
+  const el = document.getElementById(id);
+  el.textContent = label;
+  if (signal === 'bullish' || signal === 'oversold') {
+    el.className = 'text-[10px] uppercase mt-1 text-primary font-bold';
+  } else if (signal === 'bearish' || signal === 'overbought') {
+    el.className = 'text-[10px] uppercase mt-1 text-error font-bold';
+  } else {
+    el.className = 'text-[10px] uppercase mt-1 text-secondary';
+  }
+}
+
+function setSentimentBlock(id, signal, value) {
+  const el = document.getElementById(id);
+  const label = el.querySelector('span:last-child');
+  if (signal === 'bullish') {
+    el.className = 'flex flex-col items-center justify-center border-[0.5px] border-primary/40 bg-primary/30 transition-colors';
+    if (label) label.textContent = typeof value === 'number' ? value.toFixed(2) : 'BULL';
+  } else if (signal === 'bearish') {
+    el.className = 'flex flex-col items-center justify-center border-[0.5px] border-error/40 bg-error/30 transition-colors';
+    if (label) label.textContent = typeof value === 'number' ? value.toFixed(2) : 'BEAR';
+  } else {
+    el.className = 'flex flex-col items-center justify-center border-[0.5px] border-secondary/40 bg-secondary/10 transition-colors';
+    if (label) label.textContent = typeof value === 'number' ? value.toFixed(2) : 'NEUT';
+  }
+}
+
+function updateWhalePanel(data) {
+  const feed = document.getElementById('whale-feed');
+  const transfers = data.whale_transfers || [];
+
+  document.getElementById('whale-inflow').textContent = data.exchange_inflow_count || 0;
+  document.getElementById('whale-outflow').textContent = data.exchange_outflow_count || 0;
+
+  const netEl = document.getElementById('whale-net');
+  const flowBadge = document.getElementById('whale-flow-badge');
+  if (data.net_flow === 'sell_pressure') {
+    netEl.textContent = 'SELL PRESSURE';
+    netEl.className = 'font-bold text-error';
+    flowBadge.textContent = 'BEARISH';
+    flowBadge.className = 'px-2 py-1 text-[10px] font-bold uppercase bg-error/20 text-error';
+  } else if (data.net_flow === 'buy_signal') {
+    netEl.textContent = 'BUY SIGNAL';
+    netEl.className = 'font-bold text-primary';
+    flowBadge.textContent = 'BULLISH';
+    flowBadge.className = 'px-2 py-1 text-[10px] font-bold uppercase bg-primary/20 text-primary';
+  } else {
+    netEl.textContent = 'NEUTRAL';
+    netEl.className = 'font-bold text-secondary';
+    flowBadge.textContent = 'NEUTRAL';
+    flowBadge.className = 'px-2 py-1 text-[10px] font-bold uppercase bg-secondary/10 text-secondary';
+  }
+
+  if (transfers.length === 0) {
+    feed.innerHTML = `<div class="p-6 text-center text-on-surface-variant text-xs">${data.summary || 'No whale transfers detected'}</div>`;
+    return;
+  }
+
+  feed.innerHTML = transfers.map(tx => {
+    const isInflow = tx.direction === 'exchange_inflow';
+    const isOutflow = tx.direction === 'exchange_outflow';
+    const tagColor = isInflow ? 'bg-error/10 text-error' : isOutflow ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-on-surface-variant';
+    const tagText = isInflow ? 'Exchange Inflow' : isOutflow ? 'Exchange Outflow' : 'Whale Transfer';
+    const label = isInflow ? 'POTENTIAL SELL' : isOutflow ? 'ACCUMULATION' : 'OTC MOVEMENT';
+    const labelColor = isInflow ? 'text-error' : isOutflow ? 'text-primary' : 'text-on-surface-variant';
+    const usdVal = (tx.value_bnb * 596).toLocaleString();
+    const ts = tx.timestamp ? new Date(tx.timestamp * 1000).toLocaleTimeString() : '';
+    const fromShort = tx.from ? tx.from.slice(0,6)+'...'+tx.from.slice(-4) : '';
+    const toShort = tx.to ? tx.to.slice(0,6)+'...'+tx.to.slice(-4) : '';
+
+    return `
+    <div class="p-4 border-b-[0.5px] border-outline-variant hover:bg-surface-container-high transition-colors">
+      <div class="flex justify-between items-start mb-2">
+        <span class="${tagColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-tighter">${tagText}</span>
+        <span class="text-[10px] text-on-surface-variant">${ts}</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-headline text-lg font-bold text-on-surface">${tx.value_bnb.toLocaleString()} BNB</div>
+          <div class="text-[10px] font-mono text-on-surface-variant">${fromShort} <span class="text-secondary">&rarr;</span> ${toShort}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-sm font-bold text-on-surface">$${usdVal}</div>
+          <div class="text-[10px] ${labelColor}">${label}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateTradeHistory(trades) {
+  const feed = document.getElementById('trade-feed');
+  if (!trades || trades.length === 0) {
+    feed.innerHTML = '<div class="p-6 text-center text-on-surface-variant text-xs">No trades recorded</div>';
+    return;
+  }
+
+  feed.innerHTML = trades.map(t => {
+    const side = t.is_buy;
+    const sideText = side ? 'BUY' : 'SELL';
+    const sideColor = side ? 'text-primary' : 'text-error';
+    const bgColor = side ? 'bg-primary/10' : 'bg-error/10';
+    const amtIn = (t.amount_in / 1e18).toFixed(2);
+    const amtOut = (t.amount_out / 1e18).toFixed(4);
+    const price = (t.price / 1e18).toFixed(2);
+    const ts = new Date(t.timestamp * 1000).toLocaleString();
+    const conf = t.confidence;
+
+    return `
+    <div class="p-3 border-b-[0.5px] border-outline-variant hover:bg-surface-container-high transition-colors">
+      <div class="flex justify-between items-center mb-1">
+        <span class="${bgColor} ${sideColor} px-2 py-0.5 text-[10px] font-bold uppercase">${sideText}</span>
+        <span class="text-[10px] text-on-surface-variant">${ts}</span>
+      </div>
+      <div class="flex justify-between items-center">
+        <div class="text-xs">${amtIn} ${side?'USDT':'BNB'} &rarr; ${amtOut} ${side?'BNB':'USDT'}</div>
+        <div class="text-[10px] text-on-surface-variant">@${price} | ${conf}%</div>
+      </div>
+      ${t.ai_reasoning ? `<div class="text-[10px] text-on-surface-variant mt-1 truncate">${t.ai_reasoning.slice(0,80)}...</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Chart ───────────────────────────────────────────────────
+function initChart() {
+  const container = document.getElementById('price-chart');
+  chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: 360,
+    layout: {
+      background: { type: 'solid', color: '#131b2e' },
+      textColor: '#bccbb9',
+      fontFamily: 'Space Grotesk',
+      fontSize: 11,
+    },
+    grid: {
+      vertLines: { color: 'rgba(61,74,61,0.3)' },
+      horzLines: { color: 'rgba(61,74,61,0.3)' },
+    },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#3d4a3d' },
+    timeScale: { borderColor: '#3d4a3d', timeVisible: true },
+  });
+
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#4ae176', downColor: '#ef4444', borderUpColor: '#4ae176', borderDownColor: '#ef4444',
+    wickUpColor: '#4ae17688', wickDownColor: '#ef444488',
+  });
+  sma20Series = chart.addLineSeries({ color: '#2962ff', lineWidth: 1, title: 'SMA20' });
+  sma50Series = chart.addLineSeries({ color: '#ff6d00', lineWidth: 1, title: 'SMA50' });
+  bbUpperSeries = chart.addLineSeries({ color: '#ab47bc', lineWidth: 1, lineStyle: 2, title: 'BB Upper' });
+  bbLowerSeries = chart.addLineSeries({ color: '#ab47bc', lineWidth: 1, lineStyle: 2, title: 'BB Lower' });
+
+  new ResizeObserver(() => {
+    chart.applyOptions({ width: container.clientWidth });
+  }).observe(container);
+}
+
+function updateChart(ohlcv) {
+  if (!chart) return;
+  const candles = ohlcv.map(d => ({
+    time: Math.floor(new Date(d.timestamp).getTime() / 1000),
+    open: d.open, high: d.high, low: d.low, close: d.close,
+  })).sort((a,b) => a.time - b.time);
+
+  candleSeries.setData(candles);
+
+  // Calculate SMA20, SMA50 from candle data
+  const closes = candles.map(c => c.close);
+  const sma20 = calcSMA(closes, 20).map((v,i) => v != null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+  const sma50 = calcSMA(closes, 50).map((v,i) => v != null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+
+  sma20Series.setData(sma20);
+  sma50Series.setData(sma50);
+
+  // Bollinger Bands (20, 2)
+  const bb = calcBB(closes, 20, 2);
+  const bbUpper = bb.upper.map((v,i) => v != null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+  const bbLower = bb.lower.map((v,i) => v != null ? { time: candles[i].time, value: v } : null).filter(Boolean);
+  bbUpperSeries.setData(bbUpper);
+  bbLowerSeries.setData(bbLower);
+
+  chart.timeScale().fitContent();
+}
+
+function calcSMA(data, period) {
+  return data.map((_, i) => {
+    if (i < period - 1) return null;
+    const slice = data.slice(i - period + 1, i + 1);
+    return slice.reduce((a,b) => a+b, 0) / period;
+  });
+}
+
+function calcBB(data, period, mult) {
+  const sma = calcSMA(data, period);
+  const upper = [], lower = [];
+  for (let i = 0; i < data.length; i++) {
+    if (sma[i] == null) { upper.push(null); lower.push(null); continue; }
+    const slice = data.slice(i - period + 1, i + 1);
+    const std = Math.sqrt(slice.reduce((s, v) => s + (v - sma[i]) ** 2, 0) / period);
+    upper.push(sma[i] + mult * std);
+    lower.push(sma[i] - mult * std);
+  }
+  return { upper, lower };
+}
+
+// ── Tab Navigation ──────────────────────────────────────────
+let currentTab = 'analytics';
+const VIEWS = ['analytics', 'params', 'simulation', 'logs'];
+
+function showTab(tab) {
+  // Normalize aliases
+  if (tab === 'strategy') tab = 'params';
+  if (tab === 'terminal') tab = 'analytics';
+  currentTab = tab;
+
+  // Hide all views
+  VIEWS.forEach(v => {
+    const el = document.getElementById('view-' + v);
+    if (el) el.classList.add('hidden');
+  });
+
+  // Show selected view
+  const target = document.getElementById('view-' + tab);
+  if (target) target.classList.remove('hidden');
+
+  // Load view-specific data
+  if (tab === 'params') loadParams();
+  if (tab === 'simulation') loadOverrides();
+  if (tab === 'logs') fetchLogs();
+
+  // Update sidebar active states
+  document.querySelectorAll('.sidebar-link').forEach(a => {
+    const linkTab = a.getAttribute('data-tab');
+    if (linkTab === tab) {
+      a.className = 'sidebar-link flex items-center gap-4 px-6 py-3 bg-[#31394d] text-[#4ae176] border-l-4 border-[#4ae176] transition-all cursor-pointer';
+    } else {
+      a.className = 'sidebar-link flex items-center gap-4 px-6 py-3 text-[#c0c1ff] opacity-70 hover:opacity-100 hover:bg-[#0b1326] transition-all cursor-pointer';
+    }
+  });
+}
+
+// ── Simulation ──────────────────────────────────────────────
+async function loadOverrides() {
+  try {
+    const res = await fetch(`${API}/api/overrides`);
+    const o = await res.json();
+    document.getElementById('sim-enabled').checked = o.enabled;
+    updateSimStatusLabel(o.enabled);
+    document.getElementById('sim-rsi').value = o.rsi.value;
+    document.getElementById('sim-macd').value = o.macd.histogram;
+    document.getElementById('sim-bb').value = (o.bollinger.pct_b * 100);
+    // Set whale radio
+    document.querySelectorAll('input[name="sim-whale"]').forEach(r => {
+      r.checked = (r.value === o.whale.net_flow);
+    });
+    updateSimPreview();
+  } catch(e) { console.error('Load overrides error:', e); }
+}
+
+function updateSimStatusLabel(enabled) {
+  const label = document.getElementById('sim-status-label');
+  if (enabled) {
+    label.textContent = 'ACTIVE';
+    label.className = 'text-xs font-bold uppercase text-error animate-pulse';
+  } else {
+    label.textContent = 'INACTIVE';
+    label.className = 'text-xs font-bold uppercase text-on-surface-variant';
+  }
+}
+
+function toggleSimulation() {
+  const enabled = document.getElementById('sim-enabled').checked;
+  updateSimStatusLabel(enabled);
+  // Immediately send enable/disable to backend
+  fetch(`${API}/api/overrides`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+}
+
+function updateSimPreview() {
+  const rsi = parseFloat(document.getElementById('sim-rsi').value);
+  const macd = parseFloat(document.getElementById('sim-macd').value);
+  const bb = parseFloat(document.getElementById('sim-bb').value) / 100;
+  const whale = document.querySelector('input[name="sim-whale"]:checked')?.value || 'neutral';
+
+  document.getElementById('sim-rsi-val').textContent = rsi.toFixed(0);
+  document.getElementById('sim-macd-val').textContent = macd.toFixed(1);
+  document.getElementById('sim-bb-val').textContent = bb.toFixed(2);
+
+  document.getElementById('sim-p-rsi').textContent = rsi.toFixed(0);
+  document.getElementById('sim-p-macd').textContent = macd.toFixed(1);
+  document.getElementById('sim-p-bb').textContent = bb.toFixed(2);
+  document.getElementById('sim-p-whale').textContent = whale.replace('_', ' ');
+
+  // Color code preview values
+  document.getElementById('sim-p-rsi').className = rsi < 30 ? 'text-primary font-bold' : rsi > 70 ? 'text-error font-bold' : 'text-secondary';
+  document.getElementById('sim-p-macd').className = macd > 0 ? 'text-primary font-bold' : macd < 0 ? 'text-error font-bold' : 'text-secondary';
+  document.getElementById('sim-p-whale').className = whale === 'buy_signal' ? 'text-primary font-bold' : whale === 'sell_pressure' ? 'text-error font-bold' : 'text-on-surface-variant';
+}
+
+async function applyOverrides() {
+  const rsi = parseFloat(document.getElementById('sim-rsi').value);
+  const macd = parseFloat(document.getElementById('sim-macd').value);
+  const bb = parseFloat(document.getElementById('sim-bb').value) / 100;
+  const whale = document.querySelector('input[name="sim-whale"]:checked')?.value || 'neutral';
+  const enabled = document.getElementById('sim-enabled').checked;
+
+  const whaleInflow = whale === 'sell_pressure' ? 5 : 0;
+  const whaleOutflow = whale === 'buy_signal' ? 4 : 0;
+  const whaleSummary = whale === 'buy_signal' ? '거래소 출금 4건 (매수 신호) [SIMULATED]'
+    : whale === 'sell_pressure' ? '거래소 입금 5건 (매도 압력) [SIMULATED]'
+    : '대량 이체 없음 [SIMULATED]';
+
+  try {
+    const res = await fetch(`${API}/api/overrides`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled,
+        rsi: { value: rsi },
+        macd: { histogram: macd, macd: macd * 0.8, signal_line: macd * -0.2 },
+        bollinger: { pct_b: bb, upper: 620, middle: 600, lower: 580, bandwidth: 6.0 },
+        whale: { net_flow: whale, exchange_inflow_count: whaleInflow, exchange_outflow_count: whaleOutflow, summary: whaleSummary },
+      }),
+    });
+    const result = await res.json();
+
+    const statusEl = document.getElementById('sim-result');
+    const textEl = document.getElementById('sim-result-text');
+    statusEl.classList.remove('hidden');
+    textEl.textContent = `[APPLIED] Overrides ${result.enabled ? 'ACTIVE' : 'INACTIVE'} — RSI: ${result.rsi.value} (${result.rsi.signal}), MACD: ${result.macd.histogram} (${result.macd.signal}), BB %B: ${result.bollinger.pct_b} (${result.bollinger.signal}), Whale: ${result.whale.net_flow}`;
+    textEl.className = result.enabled ? 'font-mono text-xs text-error' : 'font-mono text-xs text-primary';
+
+    setTimeout(() => statusEl.classList.add('hidden'), 8000);
+  } catch(e) {
+    console.error('Apply overrides error:', e);
+  }
+}
+
+function setSimRSI(val) { document.getElementById('sim-rsi').value = val; updateSimPreview(); }
+function setSimMACD(val) { document.getElementById('sim-macd').value = val; updateSimPreview(); }
+function setSimBB(val) { document.getElementById('sim-bb').value = val; updateSimPreview(); }
+
+function applyPreset(preset) {
+  const presets = {
+    strong_buy:  { rsi: 22, macd: 4.5, bb: -15, whale: 'buy_signal' },
+    mild_buy:    { rsi: 35, macd: 1.2, bb: 20,  whale: 'buy_signal' },
+    neutral:     { rsi: 50, macd: 0,   bb: 50,  whale: 'neutral' },
+    mild_sell:   { rsi: 65, macd: -1.5, bb: 85, whale: 'sell_pressure' },
+    strong_sell: { rsi: 82, macd: -5,  bb: 120, whale: 'sell_pressure' },
+  };
+  const p = presets[preset];
+  if (!p) return;
+
+  document.getElementById('sim-rsi').value = p.rsi;
+  document.getElementById('sim-macd').value = p.macd;
+  document.getElementById('sim-bb').value = p.bb;
+  document.querySelectorAll('input[name="sim-whale"]').forEach(r => r.checked = (r.value === p.whale));
+  updateSimPreview();
+
+  // Auto-enable and apply
+  document.getElementById('sim-enabled').checked = true;
+  updateSimStatusLabel(true);
+  applyOverrides();
+}
+
+// ── Agent Log ──────────────────────────────────────────────
+let cachedLogs = [];
+
+async function fetchLogs() {
+  try {
+    const res = await fetch(`${API}/api/logs?count=200`);
+    const data = await res.json();
+    cachedLogs = data.logs || [];
+    renderLogs();
+  } catch(e) { console.error('Fetch logs error:', e); }
+}
+
+function renderLogs() {
+  const container = document.getElementById('log-container');
+  if (!container) return;
+  const filter = document.getElementById('log-filter')?.value || 'all';
+  const logs = filter === 'all' ? cachedLogs : cachedLogs.filter(l => l.category === filter || (filter === 'ai' && l.category === 'ai_reason'));
+
+  if (logs.length === 0) {
+    container.innerHTML = '<div class="text-on-surface-variant opacity-50">No logs yet — waiting for next monitor cycle...</div>';
+    document.getElementById('log-count').textContent = '0 entries';
+    return;
+  }
+
+  const levelColors = {
+    info: 'text-[#c0c1ff]',
+    success: 'text-[#4ae176]',
+    warn: 'text-[#f5a623]',
+    error: 'text-[#ff6b6b]',
+  };
+  const catIcons = {
+    cycle: '↻', price: '$', indicator: '📊', whale: '🐋',
+    ai: '🤖', ai_reason: '💬', trade: '⚡', simulation: '⚗️', system: '⚙️',
+  };
+
+  container.innerHTML = logs.map(l => {
+    const t = new Date(l.ts * 1000);
+    const time = t.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const color = levelColors[l.level] || 'text-on-surface-variant';
+    const icon = catIcons[l.category] || '•';
+    const isReason = l.category === 'ai_reason';
+    const msgClass = isReason ? 'text-on-surface-variant opacity-70 pl-6 border-l border-[#3d4a3d] ml-4' : color;
+    return `<div class="flex gap-3 leading-relaxed hover:bg-[#0b1326]/50 px-2 py-0.5 transition-colors"><span class="text-on-surface-variant opacity-40 shrink-0">${time}</span><span class="shrink-0 w-5 text-center">${icon}</span><span class="${msgClass}">${escapeHtml(l.msg)}</span></div>`;
+  }).join('');
+
+  document.getElementById('log-count').textContent = logs.length + ' entries';
+
+  if (document.getElementById('log-autoscroll')?.checked) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Parameters ──────────────────────────────────────────────
+async function loadParams() {
+  try {
+    const res = await fetch(`${API}/api/params`);
+    const p = await res.json();
+
+    document.getElementById('param-auto-trade').checked = p.auto_trade_enabled;
+    document.getElementById('param-confidence').value = p.confidence_threshold;
+    document.getElementById('param-confidence-val').textContent = p.confidence_threshold + '%';
+    document.getElementById('param-max-trade').value = p.max_trade_percent;
+    document.getElementById('param-max-trade-val').textContent = p.max_trade_percent + '%';
+    document.getElementById('param-interval').value = p.monitor_interval;
+    document.getElementById('param-interval-val').textContent = p.monitor_interval + 's';
+    document.getElementById('param-rsi-buy').value = p.rsi_buy_threshold;
+    document.getElementById('param-rsi-buy-val').textContent = p.rsi_buy_threshold;
+    document.getElementById('param-rsi-sell').value = p.rsi_sell_threshold;
+    document.getElementById('param-rsi-sell-val').textContent = p.rsi_sell_threshold;
+    document.getElementById('param-use-macd').checked = p.use_macd;
+    document.getElementById('param-use-ma').checked = p.use_ma;
+    document.getElementById('param-use-bollinger').checked = p.use_bollinger;
+    document.getElementById('param-use-whale').checked = p.use_whale_data;
+    updateRSIZones();
+  } catch(e) {
+    console.error('Load params error:', e);
+  }
+}
+
+async function saveParams() {
+  const params = {
+    auto_trade_enabled: document.getElementById('param-auto-trade').checked,
+    confidence_threshold: parseInt(document.getElementById('param-confidence').value),
+    max_trade_percent: parseInt(document.getElementById('param-max-trade').value),
+    monitor_interval: parseInt(document.getElementById('param-interval').value),
+    rsi_buy_threshold: parseInt(document.getElementById('param-rsi-buy').value),
+    rsi_sell_threshold: parseInt(document.getElementById('param-rsi-sell').value),
+    use_macd: document.getElementById('param-use-macd').checked,
+    use_ma: document.getElementById('param-use-ma').checked,
+    use_bollinger: document.getElementById('param-use-bollinger').checked,
+    use_whale_data: document.getElementById('param-use-whale').checked,
+  };
+
+  try {
+    const res = await fetch(`${API}/api/params`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const result = await res.json();
+
+    const statusEl = document.getElementById('params-status');
+    const textEl = document.getElementById('params-status-text');
+    statusEl.classList.remove('hidden');
+    textEl.textContent = `[SAVED] Parameters updated at ${new Date().toLocaleTimeString()} — Auto-trade: ${result.auto_trade_enabled ? 'ON' : 'OFF'}, Confidence: ${result.confidence_threshold}%, Interval: ${result.monitor_interval}s`;
+
+    setTimeout(() => statusEl.classList.add('hidden'), 5000);
+  } catch(e) {
+    console.error('Save params error:', e);
+  }
+}
+
+function updateRSIZones() {
+  const buy = parseInt(document.getElementById('param-rsi-buy').value);
+  const sell = parseInt(document.getElementById('param-rsi-sell').value);
+  document.getElementById('rsi-zone-buy').style.width = buy + '%';
+  document.getElementById('rsi-zone-neutral').style.width = (sell - buy) + '%';
+  document.getElementById('rsi-zone-sell').style.width = (100 - sell) + '%';
+}
+
+// ── Refresh ─────────────────────────────────────────────────
+async function fetchNetwork() {
+  try {
+    const res = await fetch(`${API}/api/network`);
+    const n = await res.json();
+    const dot = document.getElementById('net-dot');
+    const label = document.getElementById('net-label');
+    if (n.connected) {
+      dot.className = 'w-2 h-2 rounded-full bg-[#4ae176] animate-pulse';
+      label.textContent = 'BSC TESTNET';
+      label.className = 'text-[10px] text-[#4ae176]';
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-error/60 animate-pulse';
+      label.textContent = 'DISCONNECTED';
+      label.className = 'text-[10px] text-error';
+    }
+    document.getElementById('net-block').textContent = n.block_number ? '#' + n.block_number.toLocaleString() : '—';
+    document.getElementById('net-gas').textContent = n.gas_price_gwei ? n.gas_price_gwei + ' Gwei' : '— Gwei';
+  } catch(e) {
+    document.getElementById('net-dot').className = 'w-2 h-2 rounded-full bg-error/60';
+    document.getElementById('net-label').textContent = 'OFFLINE';
+    console.error('Network fetch error:', e);
+  }
+}
+
+function refreshData() {
+  fetchStatus();
+  fetchOHLCV();
+  fetchWhales();
+  fetchTrades();
+  fetchLogs();
+  fetchNetwork();
+  if (walletAddress) loadPortfolio();
+}
+
+// ── Init ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initChart();
+  refreshData();
+  setInterval(fetchStatus, 30000);
+  setInterval(fetchOHLCV, 120000);
+  setInterval(fetchWhales, 60000);
+  setInterval(fetchNetwork, 15000);
+  setInterval(() => { if (currentTab === 'logs') fetchLogs(); }, 10000);
+});
+</script>
+</body>
+</html>

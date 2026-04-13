@@ -90,11 +90,12 @@ def calculate_bollinger(df: pd.DataFrame, period: int = 20, std: float = 2.0) ->
     if bbands is None or bbands.empty:
         return {"upper": None, "middle": None, "lower": None, "pct_b": None, "signal": "neutral"}
 
-    upper = float(bbands.iloc[-1, 0])  # BBU
-    middle = float(bbands.iloc[-1, 1])  # BBM
-    lower = float(bbands.iloc[-1, 2])  # BBL
-    bandwidth = float(bbands.iloc[-1, 3]) if bbands.shape[1] > 3 else None
-    pct_b = float(bbands.iloc[-1, 4]) if bbands.shape[1] > 4 else None
+    # pandas-ta bbands column order: BBL, BBM, BBU, BBB, BBP
+    lower = float(bbands.iloc[-1, 0])     # BBL
+    middle = float(bbands.iloc[-1, 1])    # BBM
+    upper = float(bbands.iloc[-1, 2])     # BBU
+    bandwidth = float(bbands.iloc[-1, 3]) if bbands.shape[1] > 3 else None  # BBB
+    pct_b = float(bbands.iloc[-1, 4]) if bbands.shape[1] > 4 else None      # BBP
 
     signal = "neutral"
     if pct_b is not None:

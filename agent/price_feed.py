@@ -47,7 +47,7 @@ def get_current_price() -> float:
 async def get_ohlcv(days: int = 7) -> pd.DataFrame:
     """Fetch BNB/USDT 1-hour OHLCV from CoinGecko for the past N days."""
     url = f"{COINGECKO_API_URL}/coins/binancecoin/ohlc"
-    params = {"vs_currency": "usd", "days": days}
+    params = {"vs_currency": "usd", "days": str(days)}
 
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as resp:

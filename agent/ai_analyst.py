@@ -36,6 +36,7 @@ async def analyze(
     whale_data: dict,
     recent_trades: list | None = None,
     portfolio: dict | None = None,
+    user_params: dict | None = None,
 ) -> dict:
     """Send indicators + on-chain data to Claude for trading analysis."""
     if not client:
@@ -95,6 +96,18 @@ async def analyze(
 
     if portfolio:
         user_prompt += f"\n## 현재 포트폴리오\n- USDT: {portfolio.get('usdt', 0)}\n- BNB: {portfolio.get('bnb', 0)}\n"
+
+    if user_params:
+        user_prompt += f"""
+## 사용자 설정 파라미터 (이 값을 참고하여 판단)
+- RSI 매수 임계값: {user_params.get('rsi_buy_threshold', 30)} 이하일 때 매수 고려
+- RSI 매도 임계값: {user_params.get('rsi_sell_threshold', 70)} 이상일 때 매도 고려
+- 최대 매매 비율: 포트폴리오의 {user_params.get('max_trade_percent', 50)}%
+- 고래 데이터 사용: {'예' if user_params.get('use_whale_data', True) else '아니오 (무시할 것)'}
+- 볼린저밴드 사용: {'예' if user_params.get('use_bollinger', True) else '아니오 (무시할 것)'}
+- MACD 사용: {'예' if user_params.get('use_macd', True) else '아니오 (무시할 것)'}
+- 이동평균선 사용: {'예' if user_params.get('use_ma', True) else '아니오 (무시할 것)'}
+"""
 
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
