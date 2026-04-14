@@ -16,9 +16,9 @@ main.py monitor_loop() — 60초마다 반복
    │   공식: price = (sqrtPriceX96 / 2^96)^2 × 10^(18-18)
    │   token0=BNB, token1=USDT이므로 1/price 해서 USDT 기준으로 변환
    │
-   └─ CoinGecko OHLC API → 7일치 1시간봉 168개 캔들
-      GET /coins/binancecoin/ohlc?vs_currency=usd&days=7
-      → DataFrame [timestamp, open, high, low, close]
+   └─ Binance API → 41일치 1시간봉 984개 캔들 + 볼륨
+      GET /api/v3/klines?symbol=BNBUSDT&interval=1h&limit=984
+      → DataFrame [timestamp, open, high, low, close, volume]
 
 2. indicators.calculate_all(ohlcv)
    ├─ RSI(14) — pandas_ta.rsi(close, 14)
@@ -31,6 +31,7 @@ main.py monitor_loop() — 60초마다 반복
    │   MACD선이 시그널선 위로 교차: 골든크로스
    │
    ├─ MA — SMA(20, 50, 200), EMA(12, 26)
+   │   SMA(200): 41일 데이터로 계산 가능 (984 캔들 > 200)
    │   EMA12 > EMA26: golden_cross (매수)
    │   EMA12 < EMA26: death_cross (매도)
    │   price > SMA20: above (상승 추세)
@@ -130,7 +131,7 @@ tradeCount()            — 총 매매 건수
   "indicators": {
     "rsi": {"value": 43.52, "signal": "neutral", "period": 14},
     "macd": {"macd": -3.15, "signal_line": -1.19, "histogram": -1.96, "signal": "bearish"},
-    "ma": {"sma20": 601.45, "sma50": 598.2, "sma200": null, "ema12": 599.1, "ema26": 600.3, "cross": "death_cross", "price_vs_sma20": "below"},
+    "ma": {"sma20": 601.45, "sma50": 598.2, "sma200": 603.77, "ema12": 599.1, "ema26": 600.3, "cross": "death_cross", "price_vs_sma20": "below"},
     "bollinger": {"upper": 615.2, "middle": 601.45, "lower": 587.7, "bandwidth": 4.57, "pct_b": 0.24, "signal": "neutral"}
   },
   "whale_data": {"net_flow": "neutral", "exchange_inflow_count": 0, "exchange_outflow_count": 0, "summary": "..."},
@@ -222,19 +223,142 @@ tradeCount()            — 총 매매 건수
 | 네트워크 | fetchNetwork() | 15초 |
 | 에이전트 로그 | fetchLogs() | 10초 (로그 탭일 때만) |
 
-### MetaMask 연결
+### MetaMask / Rabby 연결
 connectWallet() → BSC Testnet 자동 추가 (chainId 0x61)
-→ 연결 후 loadPortfolio() → Vault 잔고 사이드바에 표시
+→ 연결 후 POST /api/set-user → AI가 해당 지갑으로 자동매매
+→ loadPortfolio() → Vault 잔고 사이드바에 표시 (5초 자동 새로고침)
+→ Mint Test USDT / Deposit to Vault 버튼 활성화
 
 ### 차트 (lightweight-charts)
-- candlestickSeries: OHLCV 1시간봉
+- candlestickSeries: OHLCV 1시간봉 (41일, 984캔들, KST 시간대)
 - sma20Series: SMA(20) 파란 라인
 - sma50Series: SMA(50) 보라 라인
+- sma200Series: SMA(200) 흰색 점선
 - bbUpperSeries / bbLowerSeries: 볼린저 밴드 (녹색 점선)
+- volumeSeries: 거래량 히스토그램 (하단)
 
 ---
 
-## 5. 시뮬레이션 데모 시나리오
+## 5. AI 판단 기준 (핵심)
+
+### AI는 뭘 보고 판단하는가?
+
+규칙 기반이 아님. Claude한테 모든 데이터를 텍스트로 넘기고 **종합 판단**을 시킴.
+단일 지표로 결정하는 게 아니라 여러 지표의 **컨플루언스(confluence)**를 봄.
+
+AI에게 전달되는 데이터:
+```
+1. 현재가 (PancakeSwap V3 실시간)
+2. RSI(14) — 값 + 신호 (oversold/neutral/overbought)
+3. MACD(12/26/9) — MACD선, 시그널선, 히스토그램, 신호
+4. 이동평균 — SMA(20/50/200), EMA(12/26), 크로스 상태, 가격 위치
+5. 볼린저밴드 — 상/중/하단, %B, 신호
+6. BSC 고래 데이터 — 거래소 입출금 건수, 넷플로우, 요약
+7. 사용자 파라미터 — RSI 임계값, 지표 토글, 최대 매매 비율
+```
+
+### AI 시스템 프롬프트 핵심 원칙 (ai_analyst.py L8~)
+```
+1. 단일 지표에 의존하지 말고 여러 지표의 컨플루언스를 확인
+2. BSC 온체인 고래 데이터는 시장 심리의 선행 지표로 활용
+3. 확신이 낮으면 hold를 권장
+4. 리스크 관리: 한 번에 포트폴리오의 50%를 초과하는 매매 금지
+```
+
+### BUY 판단 기준 (AI가 종합적으로 고려)
+| 지표 | 매수 시그널 | 가중치(AI 재량) |
+|------|-----------|---------------|
+| RSI | < 30 (과매도) | 높음 — 반등 기대 |
+| MACD | 히스토그램 양수 전환, 골든크로스 | 중간 — 모멘텀 전환 |
+| MA | EMA12 > EMA26 (골든크로스), 가격 > SMA20 | 중간 — 추세 전환 |
+| 볼린저 | %B < 0 (하단 이탈) | 중간 — 과매도 극단 |
+| 고래 | 거래소 출금 다수 (outflow) | 높음 — 대형 매수자 축적 |
+
+→ 이 중 **3개 이상 동시 매수 신호**면 BUY + 높은 confidence
+
+### SELL 판단 기준
+| 지표 | 매도 시그널 | 가중치(AI 재량) |
+|------|-----------|---------------|
+| RSI | > 70 (과매수) | 높음 — 조정 예상 |
+| MACD | 히스토그램 음수 전환, 데드크로스 | 중간 — 모멘텀 약화 |
+| MA | EMA12 < EMA26 (데드크로스), 가격 < SMA20 | 중간 — 하락 추세 |
+| 볼린저 | %B > 1 (상단 돌파) | 중간 — 과매수 극단 |
+| 고래 | 거래소 입금 다수 (inflow) | 높음 — 대형 매도 준비 |
+
+→ 이 중 **3개 이상 동시 매도 신호**면 SELL + 높은 confidence
+
+### HOLD 판단 기준
+- 지표끼리 **상충** (RSI 매수인데 고래 매도 등)
+- 대부분 **중립** 신호
+- confidence가 낮아서 확신 부족
+
+### Confidence Score (0~100)
+AI가 자기 판단에 대한 확신도를 스스로 매김. 규칙:
+```
+90~100%  — 거의 모든 지표가 같은 방향 + 고래 데이터 확인
+75~89%   — 3~4개 지표 일치 + 고래 약한 확인
+60~74%   — 일부 지표 일치하나 상충도 있음
+40~59%   — 혼재된 신호, 방향성 불확실
+0~39%    — 데이터 부족하거나 판단 불가
+```
+
+**핵심: confidence가 높아도 자동매매 안 걸릴 수 있음.**
+trading_params의 confidence_threshold(기본 70%) 이상이어야 실행됨.
+
+### 실제 예시
+
+**Strong Buy (confidence 85%):**
+```
+RSI 22 (oversold) ✅
+MACD hist +4.5 (bullish) ✅
+BB %B -0.15 (하단 이탈) ✅
+Whale: outflow 4건 ✅
+→ 4/4 컨플루언스 → BUY 85%
+```
+
+**Hold (confidence 65%):**
+```
+RSI 43 (neutral) —
+MACD hist -1.96 (bearish) ⚠️
+BB %B 0.24 (중립) —
+Whale: 데이터 없음 —
+→ 약세 편향이나 명확한 신호 없음 → HOLD 65%
+```
+
+### 사용자 파라미터가 AI에 미치는 영향
+
+Parameters 탭에서 설정한 값이 AI 프롬프트에 **가이드라인**으로 전달됨:
+```
+- RSI 매수 임계값: 30 이하일 때 매수 고려 ← 사용자가 35로 바꾸면 AI도 35 기준으로 판단
+- RSI 매도 임계값: 70 이상일 때 매도 고려
+- 최대 매매 비율: 포트폴리오의 50%
+- 지표 토글: MACD OFF 하면 → "MACD 무시할 것"이라고 프롬프트에 명시
+```
+
+AI는 이걸 **참고**하지 강제는 아님. RSI 매수 임계값 30인데 RSI 32면 AI 재량으로 매수할 수도 있음 (다른 지표가 강하면).
+
+### 자동매매 실행 플로우
+```
+monitor_loop (60초마다)
+│
+├─ 데이터 수집 (가격/지표/고래)
+├─ [시뮬레이션 ON이면 오버라이드 적용]
+├─ Claude API 호출 → JSON 응답 파싱
+│
+└─ 자동매매 체크:
+   ├─ auto_trade_enabled? → NO → 스킵
+   ├─ action == "hold"? → YES → 스킵
+   ├─ confidence >= threshold? → NO → 스킵 (65% < 70% 같은 경우)
+   └─ ALL YES → 실행!
+       ├─ 매매 금액 = min(AI추천%, max_trade%) × Vault잔고
+       ├─ BUY: Vault.executeBuy() → USDT→BNB 스왑
+       ├─ SELL: Vault.executeSell() → BNB→USDT 스왑
+       └─ TradeRegistry.recordTrade() → 온체인 기록 (reasoning 포함)
+```
+
+---
+
+## 6. 시뮬레이션 데모 시나리오
 
 ### Strong Buy 트리거 방법
 1. Simulation 탭 → "Strong Buy" 프리셋 클릭
@@ -265,7 +389,7 @@ Parameters 탭에서:
 
 ---
 
-## 6. 환경변수 (.env)
+## 7. 환경변수 (.env)
 
 | 변수 | 설명 | 필수 |
 |------|------|------|
@@ -274,7 +398,6 @@ Parameters 탭에서:
 | `BSCSCAN_API_KEY` | BSCScan API 키 (고래 감지) | O |
 | `AGENT_PRIVATE_KEY` | 에이전트 지갑 프라이빗 키 (0x 접두사) | O |
 | `ANTHROPIC_API_KEY` | Claude API 키 | O |
-| `COINGECKO_API_URL` | CoinGecko API base URL | O |
 | `PANCAKE_BNB_USDT_POOL` | PancakeSwap V3 풀 주소 | O |
 | `VAULT_ADDRESS` | Vault 컨트랙트 주소 | O (배포 후) |
 | `TRADE_REGISTRY_ADDRESS` | TradeRegistry 주소 | O (배포 후) |
@@ -285,7 +408,7 @@ Parameters 탭에서:
 
 ---
 
-## 7. 실행 방법
+## 8. 실행 방법
 
 ```bash
 # 1. venv 활성화
@@ -317,7 +440,7 @@ cd contracts && forge test -vv   # 16개 테스트
 
 ---
 
-## 8. 파일별 핵심 코드 위치
+## 9. 파일별 핵심 코드 위치
 
 | 파일 | 핵심 함수/위치 | 설명 |
 |------|---------------|------|
@@ -329,6 +452,7 @@ cd contracts && forge test -vv   # 16개 테스트
 | `ai_analyst.py` | `analyze()` L33~ | Claude API 호출 |
 | `indicators.py` | `calculate_all()` | RSI/MACD/MA/BB 계산 |
 | `price_feed.py` | `get_current_price()` | PancakeSwap slot0 가격 |
+| `price_feed.py` | `get_ohlcv()` | Binance 1H OHLCV (41일) |
 | `bsc_onchain.py` | `EXCHANGE_WALLETS` | 바이낸스 핫월렛 목록 |
 | `executor.py` | `execute_buy/sell()` | 온체인 스왑 실행 |
 | `frontend/index.html` | `showTab()` L1146~ | 탭 전환 로직 |
@@ -337,18 +461,18 @@ cd contracts && forge test -vv   # 16개 테스트
 
 ---
 
-## 9. 알려진 제한사항
+## 10. 알려진 제한사항
 
 - **MockRouter**: 고정 환율 (1 BNB = 600 USDT). 프로덕션에서는 PancakeSwap V2/V3 Router로 교체
-- **CoinGecko 무료 API**: rate limit 있음 (분당 10~30회). 429 에러 시 캐시된 데이터 사용
+- **Binance API**: 무료, API 키 불필요. rate limit 넉넉함. 최대 1000개 캔들 (41.6일분 1시간봉)
 - **BSCScan 무료 API**: 초당 5회 제한. 고래 감지가 바이낸스 핫월렛에 한정
-- **SMA(200)**: 7일 1시간봉 168개로는 SMA(200) 계산 불가 → null 반환
 - **에이전트 로그**: 메모리 기반 (최대 200개). 서버 재시작 시 초기화
-- **MetaMask**: BSC Testnet만 지원. 메인넷 전환 시 chainId/RPC 변경 필요
+- **MetaMask/Rabby**: BSC Testnet만 지원. 메인넷 전환 시 chainId/RPC 변경 필요
+- **지갑 전환**: 새 지갑 연결 시 이전 지갑의 active_user가 덮어씌워짐 (동시 다중 사용자 미지원)
 
 ---
 
-## 10. 발표 킬링 포인트
+## 11. 발표 킬링 포인트
 
 1. **"규칙 기반이 아닌 AI 종합 판단"** — RSI<30이면 무조건 사는 봇이 아니라, 여러 지표 + 온체인 고래 데이터를 Claude가 종합 분석해서 판단. 같은 RSI 32여도 고래 매도 압력이 있으면 매수 보류.
 

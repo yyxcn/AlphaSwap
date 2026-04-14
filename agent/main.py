@@ -36,6 +36,10 @@ def add_log(level: str, msg: str, category: str = "system"):
     })
 
 
+# ── Active Trading User ──────────────────────────────────────────────
+# When set, AI trades on behalf of this user's Vault balance instead of agent wallet.
+active_user: dict = {"address": None}
+
 # ── State ────────────────────────────────────────────────────────────
 latest_state: dict = {
     "current_price": None,
@@ -88,6 +92,10 @@ async def monitor_loop():
             # 2. Technical indicators (1h candles)
             ind = indicators.calculate_all(ohlcv)
 
+            # 24h volume summary (last 24 candles)
+            vol_24h = float(ohlcv["volume"].tail(24).sum()) if "volume" in ohlcv.columns else 0
+            ind["volume_24h"] = round(vol_24h, 2)
+
             # 3. BSC on-chain whale data
             whale_data = await bsc_onchain.get_whale_transfers()
 
@@ -125,7 +133,7 @@ async def monitor_loop():
             logger.info(f"AI reasoning: {ai_signal['reasoning']}")
             ai_level = "success" if ai_signal["action"] == "buy" else "error" if ai_signal["action"] == "sell" else "info"
             add_log(ai_level, f"AI → {ai_signal['action'].upper()} (confidence {ai_signal['confidence']}%)", "ai")
-            add_log("info", ai_signal.get("reasoning", "")[:300], "ai_reason")
+            add_log("info", ai_signal.get("reasoning", ""), "ai_reason")
 
             # Update state
             latest_state.update({
@@ -144,24 +152,28 @@ async def monitor_loop():
                 and ai_signal.get("confidence", 0) >= trading_params["confidence_threshold"]
             ):
                 try:
-                    # Default user = agent wallet for demo
+                    # Use active user if connected, otherwise agent wallet
                     from web3 import Web3
-                    agent_address = Web3(Web3.HTTPProvider(config.BSC_TESTNET_RPC)).eth.account.from_key(config.AGENT_PRIVATE_KEY).address
+                    if active_user["address"]:
+                        trade_address = Web3.to_checksum_address(active_user["address"])
+                        add_log("info", f"Trading on behalf of user: {trade_address[:10]}…", "trade")
+                    else:
+                        trade_address = Web3(Web3.HTTPProvider(config.BSC_TESTNET_RPC)).eth.account.from_key(config.AGENT_PRIVATE_KEY).address
 
                     # Calculate trade amount from AI recommendation
                     max_pct = trading_params["max_trade_percent"]
                     pct = min(ai_signal.get("amount_percent", 10), max_pct) / 100
-                    balances = executor.get_user_balances(agent_address)
+                    balances = executor.get_user_balances(trade_address)
 
                     if ai_signal["action"] == "buy":
                         usdt_bal = balances["usdt"]
                         amount = int(usdt_bal * pct)
                         if amount > 0:
-                            tx = executor.execute_buy(agent_address, amount)
+                            tx = executor.execute_buy(trade_address, amount)
                             logger.info(f"AUTO BUY executed: {amount/1e18:.2f} USDT | TX: {tx['tx_hash']}")
                             add_log("success", f"AUTO BUY executed: {amount/1e18:.2f} USDT → BNB | TX: {tx['tx_hash'][:18]}…", "trade")
                             executor.record_trade(
-                                user=agent_address, pair="BNB/USDT", is_buy=True,
+                                user=trade_address, pair="BNB/USDT", is_buy=True,
                                 amount_in=amount, amount_out=0,
                                 price=int(current_price * 1e18),
                                 ai_reasoning=ai_signal.get("reasoning", "")[:200],
@@ -171,11 +183,11 @@ async def monitor_loop():
                         bnb_bal = balances["bnb"]
                         amount = int(bnb_bal * pct)
                         if amount > 0:
-                            tx = executor.execute_sell(agent_address, amount)
+                            tx = executor.execute_sell(trade_address, amount)
                             logger.info(f"AUTO SELL executed: {amount/1e18:.4f} BNB | TX: {tx['tx_hash']}")
                             add_log("error", f"AUTO SELL executed: {amount/1e18:.4f} BNB → USDT | TX: {tx['tx_hash'][:18]}…", "trade")
                             executor.record_trade(
-                                user=agent_address, pair="BNB/USDT", is_buy=False,
+                                user=trade_address, pair="BNB/USDT", is_buy=False,
                                 amount_in=amount, amount_out=0,
                                 price=int(current_price * 1e18),
                                 ai_reasoning=ai_signal.get("reasoning", "")[:200],
@@ -407,6 +419,34 @@ async def get_portfolio(address: str):
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.post("/api/set-user")
+async def set_user(req: dict):
+    """Set the active user for AI trading."""
+    addr = req.get("address")
+    if addr:
+        from web3 import Web3
+        active_user["address"] = Web3.to_checksum_address(addr)
+        add_log("info", f"Active trading user set: {active_user['address'][:10]}…", "system")
+        return {"status": "ok", "active_user": active_user["address"]}
+    else:
+        active_user["address"] = None
+        add_log("info", "Active trading user cleared — using agent wallet", "system")
+        return {"status": "ok", "active_user": None}
+
+
+@app.get("/api/active-user")
+async def get_active_user():
+    """Get current active trading user."""
+    from web3 import Web3
+    agent_address = Web3(Web3.HTTPProvider(config.BSC_TESTNET_RPC)).eth.account.from_key(config.AGENT_PRIVATE_KEY).address
+    trade_address = active_user["address"] or agent_address
+    return {
+        "active_user": active_user["address"],
+        "trade_address": trade_address,
+        "is_user_wallet": active_user["address"] is not None,
+    }
 
 
 @app.get("/api/agent-balance")

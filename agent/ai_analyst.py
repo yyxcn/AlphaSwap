@@ -81,6 +81,9 @@ async def analyze(
 - %B: {indicators['bollinger']['pct_b']}
 - 신호: {indicators['bollinger']['signal']}
 
+## 24시간 거래량
+- BNB 거래량: {indicators.get('volume_24h', 'N/A')} BNB
+
 ## BSC 온체인 고래 데이터
 - 넷플로우: {whale_data.get('net_flow', 'unknown')}
 - 거래소 입금(매도 압력): {whale_data.get('exchange_inflow_count', 0)}건
