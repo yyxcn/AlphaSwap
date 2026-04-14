@@ -12,11 +12,16 @@ from config import (
 
 w3 = Web3(Web3.HTTPProvider(BSC_TESTNET_RPC))
 
-# Load ABIs from Foundry artifacts
+# Load ABIs — try local abi/ first (for deploy), fallback to Foundry artifacts (for dev)
+ABI_DIR = Path(__file__).resolve().parent / "abi"
 CONTRACTS_DIR = Path(__file__).resolve().parent.parent / "contracts" / "out"
 
 
 def _load_abi(contract_name: str) -> list:
+    local = ABI_DIR / f"{contract_name}.json"
+    if local.exists():
+        with open(local) as f:
+            return json.load(f)["abi"]
     artifact = CONTRACTS_DIR / f"{contract_name}.sol" / f"{contract_name}.json"
     with open(artifact) as f:
         return json.load(f)["abi"]

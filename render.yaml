@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: alphaswap
+    runtime: python
+    buildCommand: pip install -r agent/requirements.txt
+    startCommand: cd agent && python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.0"
