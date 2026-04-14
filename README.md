@@ -18,9 +18,9 @@ Every 60 seconds:
           ▼
   ┌──────────────────────────────────┐
   │  Technical Indicators (1H)       │
-  │  RSI(14) · MACD(12/26/9)        │
-  │  SMA(20/50/200) · EMA(12/26)    │
-  │  Bollinger Bands(20, 2σ)        │
+  │  RSI(14) · MACD(12/26/9)         │
+  │  SMA(20/50/200) · EMA(12/26)     │
+  │  Bollinger Bands(20, 2σ)         │ 
   └──────────────┬───────────────────┘
                  │
                  ▼
@@ -28,8 +28,8 @@ Every 60 seconds:
   │  Claude AI Analysis              │
   │  Synthesizes indicators + whale  │
   │  data into a holistic judgment   │
-  │  → BUY / SELL / HOLD            │
-  │  → Confidence 0–100 %           │
+  │  → BUY / SELL / HOLD             │
+  │  → Confidence 0–100 %            │
   │  → Reasoning in natural language │
   └──────────────┬───────────────────┘
                  │
