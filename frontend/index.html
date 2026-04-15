@@ -371,7 +371,7 @@ body {
         <div class="flex justify-between items-center">
           <div>
             <h2 class="font-headline text-lg font-bold uppercase tracking-tight">Auto-Trade Engine</h2>
-            <p class="text-xs text-on-surface-variant mt-1">AI 신뢰도가 임계값을 넘으면 자동으로 매매를 실행합니다</p>
+            <p class="text-xs text-on-surface-variant mt-1">Automatically executes trades when AI confidence exceeds the threshold</p>
           </div>
           <label class="relative cursor-pointer">
             <input type="checkbox" id="param-auto-trade" class="sr-only peer" checked>
@@ -387,7 +387,7 @@ body {
 
       <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
         <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Confidence Threshold</h3>
-        <p class="text-[10px] text-on-surface-variant mb-3">AI 신뢰도가 이 값 이상일 때만 자동매매 실행</p>
+        <p class="text-[10px] text-on-surface-variant mb-3">Auto-trade only executes when AI confidence is at or above this value</p>
         <div class="flex items-center gap-4">
           <input type="range" id="param-confidence" min="0" max="100" value="70" oninput="document.getElementById('param-confidence-val').textContent=this.value+'%'" class="flex-1 h-1 bg-surface-container-highest appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer">
           <span id="param-confidence-val" class="font-headline text-2xl text-primary w-16 text-right">70%</span>
@@ -396,7 +396,7 @@ body {
 
       <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
         <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Max Trade Size</h3>
-        <p class="text-[10px] text-on-surface-variant mb-3">1회 매매 시 최대 포트폴리오 비율</p>
+        <p class="text-[10px] text-on-surface-variant mb-3">Maximum portfolio percentage per single trade</p>
         <div class="flex items-center gap-4">
           <input type="range" id="param-max-trade" min="1" max="100" value="50" oninput="document.getElementById('param-max-trade-val').textContent=this.value+'%'" class="flex-1 h-1 bg-surface-container-highest appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer">
           <span id="param-max-trade-val" class="font-headline text-2xl text-primary w-16 text-right">50%</span>
@@ -405,7 +405,7 @@ body {
 
       <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
         <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Monitor Interval</h3>
-        <p class="text-[10px] text-on-surface-variant mb-3">AI 분석 주기 (초)</p>
+        <p class="text-[10px] text-on-surface-variant mb-3">AI analysis cycle interval (seconds)</p>
         <div class="flex items-center gap-4">
           <input type="range" id="param-interval" min="10" max="600" value="60" step="10" oninput="document.getElementById('param-interval-val').textContent=this.value+'s'" class="flex-1 h-1 bg-surface-container-highest appearance-none cursor-pointer accent-secondary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-secondary [&::-webkit-slider-thumb]:cursor-pointer">
           <span id="param-interval-val" class="font-headline text-2xl text-secondary w-20 text-right">60s</span>
@@ -445,7 +445,7 @@ body {
 
       <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
         <h3 class="font-headline text-sm font-bold uppercase tracking-tight mb-4">Active Indicators</h3>
-        <p class="text-[10px] text-on-surface-variant mb-4">AI 분석에 포함할 지표를 선택합니다</p>
+        <p class="text-[10px] text-on-surface-variant mb-4">Select which indicators to include in AI analysis</p>
         <div class="flex flex-col gap-3">
           <label class="flex items-center justify-between cursor-pointer">
             <div class="flex items-center gap-3">
@@ -1455,9 +1455,9 @@ async function applyOverrides() {
 
   const whaleInflow = whale === 'sell_pressure' ? 5 : 0;
   const whaleOutflow = whale === 'buy_signal' ? 4 : 0;
-  const whaleSummary = whale === 'buy_signal' ? '거래소 출금 4건 (매수 신호) [SIMULATED]'
-    : whale === 'sell_pressure' ? '거래소 입금 5건 (매도 압력) [SIMULATED]'
-    : '대량 이체 없음 [SIMULATED]';
+  const whaleSummary = whale === 'buy_signal' ? '4 exchange outflows (buy signal) [SIMULATED]'
+    : whale === 'sell_pressure' ? '5 exchange inflows (sell pressure) [SIMULATED]'
+    : 'No large transfers [SIMULATED]';
 
   try {
     const res = await fetch(`${API}/api/overrides`, {

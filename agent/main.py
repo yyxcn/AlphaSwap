@@ -122,11 +122,27 @@ async def monitor_loop():
             add_log("info", f"RSI {ind['rsi']['value']:.1f} ({ind['rsi']['signal']}) | MACD hist {ind['macd']['histogram']:.2f} ({ind['macd']['signal']})", "indicator")
             add_log("info", f"Whale: {whale_data['net_flow']} — {whale_data.get('summary','N/A')}", "whale")
 
-            # 4. AI analysis (pass user params for threshold guidance)
+            # 4. AI analysis (pass user params + portfolio + recent trades)
+            trade_portfolio = None
+            trade_recent = None
+            try:
+                from web3 import Web3
+                if active_user["address"]:
+                    t_addr = Web3.to_checksum_address(active_user["address"])
+                else:
+                    t_addr = Web3(Web3.HTTPProvider(config.BSC_TESTNET_RPC)).eth.account.from_key(config.AGENT_PRIVATE_KEY).address
+                bals = executor.get_user_balances(t_addr)
+                trade_portfolio = {"usdt": bals["usdt"] / 1e18, "bnb": bals["bnb"] / 1e18}
+                trade_recent = executor.get_recent_trades(5)
+            except Exception:
+                pass
+
             ai_signal = await ai_analyst.analyze(
                 current_price=current_price,
                 indicators=ind,
                 whale_data=whale_data,
+                recent_trades=trade_recent,
+                portfolio=trade_portfolio,
                 user_params=trading_params,
             )
             logger.info(f"AI signal: {ai_signal['action']} (confidence: {ai_signal['confidence']}%)")

@@ -5,27 +5,28 @@ from config import ANTHROPIC_API_KEY
 
 client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
-SYSTEM_PROMPT = """당신은 BNB/USDT 암호화폐 트레이딩 AI 애널리스트입니다.
-기술적 지표(1시간봉 기준)와 BSC 온체인 고래 데이터를 종합 분석하여 매매 판단을 내립니다.
+SYSTEM_PROMPT = """You are a BNB/USDT cryptocurrency trading AI analyst.
+You synthesize technical indicators (1-hour candles) and BSC on-chain whale data to make trading decisions.
 
-분석 원칙:
-1. 단일 지표에 의존하지 말고 여러 지표의 컨플루언스(confluence)를 확인하세요.
-2. BSC 온체인 고래 데이터는 시장 심리의 선행 지표로 활용하세요.
-3. 확신이 낮으면 hold를 권장하세요.
-4. 리스크 관리: 한 번에 포트폴리오의 50%를 초과하는 매매는 피하세요.
+Analysis principles:
+1. Do not rely on a single indicator — confirm confluence across multiple indicators.
+2. Use BSC on-chain whale data as a leading indicator of market sentiment.
+3. If conviction is low, recommend hold.
+4. Risk management: never exceed 50% of the portfolio in a single trade.
+5. Consider recent trade history and current portfolio — avoid repeated trades in the same direction if already sufficiently positioned.
 
-반드시 아래 JSON 형식으로만 응답하세요:
+Respond ONLY in the following JSON format:
 {
     "action": "buy" | "sell" | "hold",
     "confidence": 0~100,
     "amount_percent": 1~50,
-    "reasoning": "한국어로 판단 근거 (기술 지표 + 고래 데이터 분석 포함)",
+    "reasoning": "Reasoning in English (include technical indicator + whale data analysis)",
     "indicators_summary": {
-        "rsi": "과매도/중립/과매수 + 수치",
-        "macd": "강세/중립/약세 + 히스토그램 방향",
-        "ma": "골든크로스/데드크로스/중립 + 가격 위치",
-        "bollinger": "하단이탈/중립/상단이탈 + %B값",
-        "whale": "매수신호/중립/매도압력 + 요약"
+        "rsi": "oversold/neutral/overbought + value",
+        "macd": "bullish/neutral/bearish + histogram direction",
+        "ma": "golden_cross/death_cross/neutral + price position",
+        "bollinger": "lower_break/neutral/upper_break + %B value",
+        "whale": "buy_signal/neutral/sell_pressure + summary"
     }
 }"""
 
@@ -48,68 +49,71 @@ async def analyze(
             "indicators_summary": {},
         }
 
-    user_prompt = f"""현재 BNB/USDT 분석을 요청합니다.
+    user_prompt = f"""Requesting BNB/USDT analysis.
 
-## 현재가
+## Current Price
 {current_price} USDT
 
-## 기술적 지표 (1시간봉 기준)
+## Technical Indicators (1H candles)
 
-### RSI (14기간)
-- 값: {indicators['rsi']['value']}
-- 신호: {indicators['rsi']['signal']}
+### RSI (14-period)
+- Value: {indicators['rsi']['value']}
+- Signal: {indicators['rsi']['signal']}
 
 ### MACD (12/26/9)
 - MACD: {indicators['macd']['macd']}
-- 시그널: {indicators['macd']['signal_line']}
-- 히스토그램: {indicators['macd']['histogram']}
-- 신호: {indicators['macd']['signal']}
+- Signal line: {indicators['macd']['signal_line']}
+- Histogram: {indicators['macd']['histogram']}
+- Signal: {indicators['macd']['signal']}
 
-### 이동평균선
+### Moving Averages
 - SMA(20h): {indicators['ma']['sma20']}
 - SMA(50h): {indicators['ma']['sma50']}
 - SMA(200h): {indicators['ma']['sma200']}
 - EMA(12h): {indicators['ma']['ema12']}
 - EMA(26h): {indicators['ma']['ema26']}
-- 크로스: {indicators['ma']['cross']}
-- 가격 vs SMA20: {indicators['ma']['price_vs_sma20']}
+- Cross: {indicators['ma']['cross']}
+- Price vs SMA20: {indicators['ma']['price_vs_sma20']}
 
-### 볼린저밴드 (20h, 2σ)
-- 상단: {indicators['bollinger']['upper']}
-- 중간: {indicators['bollinger']['middle']}
-- 하단: {indicators['bollinger']['lower']}
+### Bollinger Bands (20h, 2σ)
+- Upper: {indicators['bollinger']['upper']}
+- Middle: {indicators['bollinger']['middle']}
+- Lower: {indicators['bollinger']['lower']}
 - %B: {indicators['bollinger']['pct_b']}
-- 신호: {indicators['bollinger']['signal']}
+- Signal: {indicators['bollinger']['signal']}
 
-## 24시간 거래량
-- BNB 거래량: {indicators.get('volume_24h', 'N/A')} BNB
+## 24H Volume
+- BNB volume: {indicators.get('volume_24h', 'N/A')} BNB
 
-## BSC 온체인 고래 데이터
-- 넷플로우: {whale_data.get('net_flow', 'unknown')}
-- 거래소 입금(매도 압력): {whale_data.get('exchange_inflow_count', 0)}건
-- 거래소 출금(매수 신호): {whale_data.get('exchange_outflow_count', 0)}건
-- 요약: {whale_data.get('summary', 'N/A')}
+## BSC On-chain Whale Data
+- Net flow: {whale_data.get('net_flow', 'unknown')}
+- Exchange inflow (sell pressure): {whale_data.get('exchange_inflow_count', 0)} transfers
+- Exchange outflow (buy signal): {whale_data.get('exchange_outflow_count', 0)} transfers
+- Summary: {whale_data.get('summary', 'N/A')}
 """
 
     if recent_trades:
-        user_prompt += "\n## 최근 매매 이력\n"
+        import time as _time
+        user_prompt += "\n## Recent Trade History\n"
         for t in recent_trades[-5:]:
-            side = "매수" if t.get("is_buy") else "매도"
-            user_prompt += f"- {side}: {t.get('amount_in')} → {t.get('amount_out')} (신뢰도 {t.get('confidence')}%)\n"
+            side = "BUY" if t.get("is_buy") else "SELL"
+            ts = t.get("timestamp", 0)
+            mins_ago = int((_time.time() - ts) / 60) if ts else "unknown"
+            user_prompt += f"- {side}: {t.get('amount_in')} → {t.get('amount_out')} (confidence {t.get('confidence')}%) — {mins_ago} min ago\n"
 
     if portfolio:
-        user_prompt += f"\n## 현재 포트폴리오\n- USDT: {portfolio.get('usdt', 0)}\n- BNB: {portfolio.get('bnb', 0)}\n"
+        user_prompt += f"\n## Current Portfolio\n- USDT: {portfolio.get('usdt', 0)}\n- BNB: {portfolio.get('bnb', 0)}\n"
 
     if user_params:
         user_prompt += f"""
-## 사용자 설정 파라미터 (이 값을 참고하여 판단)
-- RSI 매수 임계값: {user_params.get('rsi_buy_threshold', 30)} 이하일 때 매수 고려
-- RSI 매도 임계값: {user_params.get('rsi_sell_threshold', 70)} 이상일 때 매도 고려
-- 최대 매매 비율: 포트폴리오의 {user_params.get('max_trade_percent', 50)}%
-- 고래 데이터 사용: {'예' if user_params.get('use_whale_data', True) else '아니오 (무시할 것)'}
-- 볼린저밴드 사용: {'예' if user_params.get('use_bollinger', True) else '아니오 (무시할 것)'}
-- MACD 사용: {'예' if user_params.get('use_macd', True) else '아니오 (무시할 것)'}
-- 이동평균선 사용: {'예' if user_params.get('use_ma', True) else '아니오 (무시할 것)'}
+## User Parameters (use as guidelines)
+- RSI buy threshold: consider buying at or below {user_params.get('rsi_buy_threshold', 30)}
+- RSI sell threshold: consider selling at or above {user_params.get('rsi_sell_threshold', 70)}
+- Max trade size: {user_params.get('max_trade_percent', 50)}% of portfolio
+- Use whale data: {'yes' if user_params.get('use_whale_data', True) else 'no (ignore)'}
+- Use Bollinger Bands: {'yes' if user_params.get('use_bollinger', True) else 'no (ignore)'}
+- Use MACD: {'yes' if user_params.get('use_macd', True) else 'no (ignore)'}
+- Use Moving Averages: {'yes' if user_params.get('use_ma', True) else 'no (ignore)'}
 """
 
     message = client.messages.create(
