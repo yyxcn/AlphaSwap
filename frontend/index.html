@@ -890,11 +890,22 @@ async function loadPortfolio() {
   } catch(e) { console.error('Load portfolio error:', e); }
 }
 
-// Helper: send MetaMask transaction with ABI encoding
-function encodeABI(funcSig, params) {
-  // Simple ABI encoder for our use cases
-  const selector = funcSig; // We'll use eth_call with data
-  return selector;
+// Helper: wait for a transaction to be mined and return the receipt
+async function waitForReceipt(txHash, maxWaitMs = 60000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWaitMs) {
+    try {
+      const receipt = await window.ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+      });
+      if (receipt && receipt.blockNumber) {
+        return receipt;
+      }
+    } catch(e) { /* keep polling */ }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  throw new Error('Transaction confirmation timeout');
 }
 
 async function mintTestUSDT() {
@@ -910,7 +921,7 @@ async function mintTestUSDT() {
     const amtHex = BigInt('10000000000000000000000').toString(16).padStart(64,'0');
     const data = '0x40c10f19' + to + amtHex; // mint(address,uint256) selector
 
-    await window.ethereum.request({
+    const txHash = await window.ethereum.request({
       method: 'eth_sendTransaction',
       params: [{
         from: walletAddress,
@@ -919,10 +930,13 @@ async function mintTestUSDT() {
         gas: '0x30D40', // 200000
       }],
     });
-    btn.textContent = 'MINTED 10,000 USDT';
+    btn.textContent = 'CONFIRMING...';
+    const receipt = await waitForReceipt(txHash);
+    if (receipt.status === '0x0') throw new Error('Mint transaction reverted');
+    btn.textContent = 'MINTED 10,000 USDT ✓';
     btn.classList.remove('animate-pulse');
+    await loadPortfolio();
     setTimeout(() => { btn.textContent = 'Mint 10,000 Test USDT'; btn.disabled = false; }, 3000);
-    setTimeout(loadPortfolio, 2000);
   } catch(e) {
     btn.textContent = 'MINT FAILED — RETRY';
     btn.classList.remove('animate-pulse');
@@ -942,9 +956,9 @@ async function depositToVault() {
     const amtHex = depositAmount.toString(16).padStart(64,'0');
     const vaultPadded = CONTRACTS.VAULT.toLowerCase().replace('0x','').padStart(64,'0');
 
-    // Step 1: approve(vault, amount)
+    // Step 1: approve(vault, amount) — wait for confirmation
     const approveData = '0x095ea7b3' + vaultPadded + amtHex; // approve(address,uint256)
-    await window.ethereum.request({
+    const approveTxHash = await window.ethereum.request({
       method: 'eth_sendTransaction',
       params: [{
         from: walletAddress,
@@ -954,13 +968,15 @@ async function depositToVault() {
       }],
     });
 
-    // Wait a bit for approval to confirm
-    btn.textContent = 'DEPOSITING...';
-    await new Promise(r => setTimeout(r, 3000));
+    // Wait for approve to be mined on-chain
+    btn.textContent = 'APPROVE CONFIRMING...';
+    const approveReceipt = await waitForReceipt(approveTxHash);
+    if (approveReceipt.status === '0x0') throw new Error('Approve transaction reverted');
 
-    // Step 2: deposit(amount)
+    // Step 2: deposit(amount) — wait for confirmation
+    btn.textContent = 'DEPOSITING...';
     const depositData = '0xb6b55f25' + amtHex; // deposit(uint256)
-    await window.ethereum.request({
+    const depositTxHash = await window.ethereum.request({
       method: 'eth_sendTransaction',
       params: [{
         from: walletAddress,
@@ -970,10 +986,14 @@ async function depositToVault() {
       }],
     });
 
-    btn.textContent = 'DEPOSITED 5,000 USDT';
+    btn.textContent = 'DEPOSIT CONFIRMING...';
+    const depositReceipt = await waitForReceipt(depositTxHash);
+    if (depositReceipt.status === '0x0') throw new Error('Deposit transaction reverted');
+
+    btn.textContent = 'DEPOSITED 5,000 USDT ✓';
     btn.classList.remove('animate-pulse');
+    await loadPortfolio();
     setTimeout(() => { btn.textContent = 'Deposit 5,000 USDT → Vault'; btn.disabled = false; }, 3000);
-    setTimeout(loadPortfolio, 3000);
   } catch(e) {
     btn.textContent = 'DEPOSIT FAILED — RETRY';
     btn.classList.remove('animate-pulse');
