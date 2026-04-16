@@ -13,7 +13,6 @@ Analysis principles:
 2. Use BSC on-chain whale data as a leading indicator of market sentiment.
 3. If conviction is low, recommend hold.
 4. Risk management: never exceed 50% of the portfolio in a single trade.
-5. Consider recent trade history and current portfolio — avoid repeated trades in the same direction if already sufficiently positioned.
 
 Respond ONLY in the following JSON format:
 {
@@ -35,7 +34,6 @@ async def analyze(
     current_price: float,
     indicators: dict,
     whale_data: dict,
-    recent_trades: list | None = None,
     portfolio: dict | None = None,
     user_params: dict | None = None,
 ) -> dict:
@@ -91,15 +89,6 @@ async def analyze(
 - Exchange outflow (buy signal): {whale_data.get('exchange_outflow_count', 0)} transfers
 - Summary: {whale_data.get('summary', 'N/A')}
 """
-
-    if recent_trades:
-        import time as _time
-        user_prompt += "\n## Recent Trade History\n"
-        for t in recent_trades[-5:]:
-            side = "BUY" if t.get("is_buy") else "SELL"
-            ts = t.get("timestamp", 0)
-            mins_ago = int((_time.time() - ts) / 60) if ts else "unknown"
-            user_prompt += f"- {side}: {t.get('amount_in')} → {t.get('amount_out')} (confidence {t.get('confidence')}%) — {mins_ago} min ago\n"
 
     if portfolio:
         user_prompt += f"\n## Current Portfolio\n- USDT: {portfolio.get('usdt', 0)}\n- BNB: {portfolio.get('bnb', 0)}\n"
