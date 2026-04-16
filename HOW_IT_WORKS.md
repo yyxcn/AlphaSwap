@@ -591,7 +591,7 @@ Increase `monitor_interval` in the Parameters tab (e.g., 300s) to reduce costs.
 
 ---
 
-## 14. Summary — One Full Cycle (60 seconds)
+## 14. Summary — One Full Cycle (Example, 60 seconds)
 
 ```
 [0s]   Read BNB/USDT price from PancakeSwap V3 slot0() ($597.67)
