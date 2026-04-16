@@ -4,6 +4,8 @@
 
 AlphaSwap combines on-chain data with technical indicators, analyzed in real-time by Claude AI, to autonomously execute trades on PancakeSwap.
 
+![alt text](image.png)
+
 ---
 
 ## How It Works
@@ -40,6 +42,8 @@ Every 60 seconds:
   │  Trade recorded on-chain         │
   └──────────────────────────────────┘
 ```
+
+> **[Read the full technical deep-dive →](HOW_IT_WORKS.md)**
 
 ### What Makes the AI Different
 
