@@ -92,11 +92,11 @@ async def get_whale_transfers() -> dict:
 
     summary_parts = []
     if exchange_inflow > 0:
-        summary_parts.append(f"거래소 입금 {exchange_inflow}건 (매도 압력)")
+        summary_parts.append(f"{exchange_inflow} exchange inflows (sell pressure)")
     if exchange_outflow > 0:
-        summary_parts.append(f"거래소 출금 {exchange_outflow}건 (매수 신호)")
+        summary_parts.append(f"{exchange_outflow} exchange outflows (buy signal)")
     if not summary_parts:
-        summary_parts.append("대량 이체 없음")
+        summary_parts.append("No large transfers detected")
 
     return {
         "whale_transfers": transfers[:10],  # max 10

@@ -48,7 +48,7 @@ def _send_tx(func):
         "chainId": BSC_TESTNET_CHAIN_ID,
         "from": account.address,
         "nonce": w3.eth.get_transaction_count(account.address, "pending"),
-        "gas": 1_000_000,
+        "gas": 5_000_000,
         "gasPrice": w3.eth.gas_price,
     })
     signed = account.sign_transaction(tx)
