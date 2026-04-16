@@ -365,12 +365,28 @@ body {
 
   <div class="grid grid-cols-12 gap-5">
 
-    <!-- Auto-Trade Master Switch -->
-    <div class="col-span-12">
+    <!-- Master Switches -->
+    <div class="col-span-12 flex flex-col gap-4">
+      <!-- API Monitor Stop/Start -->
       <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
         <div class="flex justify-between items-center">
           <div>
-            <h2 class="font-headline text-lg font-bold uppercase tracking-tight">Auto-Trade Engine</h2>
+            <h2 class="font-headline text-lg font-bold uppercase tracking-tight text-error">API Monitor Loop</h2>
+            <p class="text-xs text-on-surface-variant mt-1">Master switch: pause background data processing and AI analysis to save credits</p>
+          </div>
+          <label class="relative cursor-pointer">
+            <input type="checkbox" id="param-engine-active" class="sr-only peer" checked>
+            <div class="w-14 h-7 rounded-full bg-surface-container-highest peer-checked:bg-primary/40 border-[0.5px] border-outline-variant peer-checked:border-primary/60 transition-colors duration-200"></div>
+            <div class="absolute top-[3px] left-[3px] w-5 h-5 rounded-full bg-on-surface-variant peer-checked:bg-primary peer-checked:translate-x-7 transition-all duration-200 shadow-md pointer-events-none"></div>
+          </label>
+        </div>
+      </section>
+
+      <!-- Auto-Trade Execution Switch -->
+      <section class="bg-surface-container-low border-[0.5px] border-outline-variant p-6">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="font-headline text-lg font-bold uppercase tracking-tight">Auto-Trade Execution</h2>
             <p class="text-xs text-on-surface-variant mt-1">Automatically executes trades when AI confidence exceeds the threshold</p>
           </div>
           <label class="relative cursor-pointer">
@@ -1596,6 +1612,7 @@ async function loadParams() {
     const res = await fetch(`${API}/api/params`);
     const p = await res.json();
 
+    document.getElementById('param-engine-active').checked = p.engine_active;
     document.getElementById('param-auto-trade').checked = p.auto_trade_enabled;
     document.getElementById('param-confidence').value = p.confidence_threshold;
     document.getElementById('param-confidence-val').textContent = p.confidence_threshold + '%';
@@ -1619,6 +1636,7 @@ async function loadParams() {
 
 async function saveParams() {
   const params = {
+    engine_active: document.getElementById('param-engine-active').checked,
     auto_trade_enabled: document.getElementById('param-auto-trade').checked,
     confidence_threshold: parseInt(document.getElementById('param-confidence').value),
     max_trade_percent: parseInt(document.getElementById('param-max-trade').value),
@@ -1642,7 +1660,7 @@ async function saveParams() {
     const statusEl = document.getElementById('params-status');
     const textEl = document.getElementById('params-status-text');
     statusEl.classList.remove('hidden');
-    textEl.textContent = `[SAVED] Parameters updated at ${new Date().toLocaleTimeString()} — Auto-trade: ${result.auto_trade_enabled ? 'ON' : 'OFF'}, Confidence: ${result.confidence_threshold}%, Interval: ${result.monitor_interval}s`;
+    textEl.textContent = `[SAVED] Parameters updated at ${new Date().toLocaleTimeString()} — API Monitor: ${result.engine_active ? 'ON' : 'OFF'}, Auto-trade: ${result.auto_trade_enabled ? 'ON' : 'OFF'}, Confidence: ${result.confidence_threshold}%, Interval: ${result.monitor_interval}s`;
 
     setTimeout(() => statusEl.classList.add('hidden'), 5000);
   } catch(e) {

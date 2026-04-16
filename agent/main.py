@@ -48,9 +48,11 @@ latest_state: dict = {
     "ai_signal": None,
     "last_update": None,
 }
+last_client_ping_time: float = time.time()
 
 # ── Trading Parameters (user-configurable) ───────────────────────────
 trading_params: dict = {
+    "engine_active": True,
     "auto_trade_enabled": True,
     "confidence_threshold": 70,
     "max_trade_percent": 50,
@@ -77,8 +79,18 @@ overrides: dict = {
 # ── Background monitoring loop ───────────────────────────────────────
 async def monitor_loop():
     """Main loop: fetch data → compute indicators → AI analysis → execute if signal."""
+    global last_client_ping_time
     while True:
         try:
+            if not trading_params.get("engine_active", True):
+                await asyncio.sleep(5)
+                continue
+
+            if time.time() - last_client_ping_time > 120:
+                # logger.info("Smart Sleep: No active clients for 2 mins. Pausing...") 
+                await asyncio.sleep(5)
+                continue
+
             logger.info("=== Monitor cycle start ===")
             add_log("info", "Monitor cycle started", "cycle")
 
@@ -244,6 +256,7 @@ class AnalyzeRequest(BaseModel):
 
 
 class ParamsUpdate(BaseModel):
+    engine_active: bool | None = None
     auto_trade_enabled: bool | None = None
     confidence_threshold: int | None = None
     max_trade_percent: int | None = None
@@ -326,6 +339,8 @@ async def update_overrides(req: dict):
 @app.get("/api/status")
 async def get_status():
     """Current price, indicators, whale data, and AI signal."""
+    global last_client_ping_time
+    last_client_ping_time = time.time()
     return latest_state
 
 
